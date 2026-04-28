@@ -929,17 +929,17 @@
           const cells = availCore.map(s => {
             const score = r.subScores[s];
             const sRank = subjectRankMaps[s]?.[r.examNo];
-            return `<td>${score != null ? score : '<span class="tag warn">缺</span>'}${sRank ? `<small style="color:var(--muted)"> (${sRank})</small>` : ''}</td>`;
+            return `<td style="font-weight:700;font-size:0.95rem">${score != null ? score : '<span class="tag warn">缺</span>'}${sRank ? `<small style="color:var(--muted);font-weight:400;font-size:0.76rem"> (${sRank})</small>` : ''}</td>`;
           }).join('');
           let elCell = '';
           if (availElective.length > 0) {
             const elLabel = r.elKey ? SUB[r.elKey].label : '-';
             const elScore = r.elKey ? (r.subScores[r.elKey] ?? '-') : '-';
             const elRank = r.elKey && subjectRankMaps[r.elKey]?.[r.examNo];
-            elCell = `<td>${elLabel} ${elScore}${elRank ? `<small style="color:var(--muted)"> (${elRank})</small>` : ''}</td>`;
+            elCell = `<td style="font-weight:700;font-size:0.95rem">${elLabel} ${elScore}${elRank ? `<small style="color:var(--muted);font-weight:400;font-size:0.76rem"> (${elRank})</small>` : ''}</td>`;
           }
           const totalText = r.total != null ? `<b>${r.total}</b>` : `<span style="color:var(--muted)">${r.partialTotal || '-'}</span>`;
-          return `<tr><td>${rankText}</td><td>${r.examNo}</td><td style="font-weight:700;font-size:0.95rem">${r.name || '-'}</td>${cells}${elCell}<td>${totalText}</td></tr>`;
+          return `<tr><td style="font-weight:700;font-size:0.95rem">${rankText}</td><td>${r.examNo}</td><td style="font-weight:700;font-size:0.95rem">${r.name || '-'}</td>${cells}${elCell}<td style="font-weight:700;font-size:0.95rem">${totalText}</td></tr>`;
         }).join('') + '</tbody></table>';
 
       // Per-subject stats table
