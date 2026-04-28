@@ -1493,15 +1493,16 @@
       } catch { /* file:// or no data.json, use localStorage as normal */ }
 
       if (isReadOnly) {
-        // Hide upload/edit controls, show read-only notice
-        document.querySelectorAll('#panel-data .btn, #uploadFile, #uploadSubject').forEach(el => el.disabled = true);
-        $('dataMessage').className = 'message info';
-        $('dataMessage').textContent = '当前为在线查看模式（只读）。数据由班主任发布，如需更新请联系班主任。';
+        // Hide "数据管理" tab and panel entirely
+        document.querySelector('.tab-btn[data-tab="data"]').style.display = 'none';
+        $('panel-data').style.display = 'none';
+        // Default to summary tab
+        switchTab('summary');
       }
 
       bindEvents();
       renderMeta();
-      renderActivePanel();
+      if (!isReadOnly) renderActivePanel();
     }
 
     init();
