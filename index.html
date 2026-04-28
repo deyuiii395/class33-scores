@@ -1471,26 +1471,22 @@
     let isReadOnly = false;
 
     async function init() {
-      // Try to load data.json from the same directory (works on GitHub Pages)
-      try {
-        const resp = await fetch('data.json?t=' + Date.now());
-        if (resp.ok) {
-          const published = await resp.json();
-          if (published && published.version === 2 && Object.keys(published.scores || {}).length > 0) {
-            // Has published data - use it, and check if localStorage also has data
-            const local = loadState();
-            const localHasData = Object.values(local.scores || {}).some(s => Object.keys(s).length > 0);
-            if (localHasData) {
-              // Local data exists (teacher's machine) - use local, ignore published
-              app = local;
-            } else {
-              // No local data (viewer's machine) - use published, read-only
+      // GitHub Pages (github.io) = read-only viewer mode
+      // Local file:// or localhost = admin mode
+      const isOnline = location.hostname.includes('github.io');
+
+      if (isOnline) {
+        try {
+          const resp = await fetch('data.json?t=' + Date.now());
+          if (resp.ok) {
+            const published = await resp.json();
+            if (published && published.version === 2 && Object.keys(published.scores || {}).length > 0) {
               app = published;
               isReadOnly = true;
             }
           }
-        }
-      } catch { /* file:// or no data.json, use localStorage as normal */ }
+        } catch { /* no data.json yet */ }
+      }
 
       if (isReadOnly) {
         // Hide "数据管理" tab and panel entirely
