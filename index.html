@@ -939,7 +939,7 @@
             elCell = `<td>${elLabel} ${elScore}${elRank ? `<small style="color:var(--muted)"> (${elRank})</small>` : ''}</td>`;
           }
           const totalText = r.total != null ? `<b>${r.total}</b>` : `<span style="color:var(--muted)">${r.partialTotal || '-'}</span>`;
-          return `<tr><td>${rankText}</td><td>${r.examNo}</td><td>${r.name || '-'}</td>${cells}${elCell}<td>${totalText}</td></tr>`;
+          return `<tr><td>${rankText}</td><td>${r.examNo}</td><td style="font-weight:700;font-size:0.95rem">${r.name || '-'}</td>${cells}${elCell}<td>${totalText}</td></tr>`;
         }).join('') + '</tbody></table>';
 
       // Per-subject stats table
