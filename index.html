@@ -229,7 +229,7 @@
             <button class="btn danger" id="clearDataBtn">清空全部数据</button>
             <input id="backupInput" type="file" accept=".json" style="display:none" />
           </div>
-          <p class="mini-note">发布：导出 data.json → 放入 GitHub 仓库 → push → 其他人通过网址查看成绩</p>
+          <p class="mini-note">发布：点击按钮 → 自动同步到 GitHub → 其他人通过网址查看成绩</p>
         </article>
       </div>
 
@@ -1446,13 +1446,25 @@
       $('progressTo').addEventListener('change', renderProgressPanel);
     }
 
-    // === Publish: export data.json for GitHub Pages ===
-    function exportPublishData() {
-      const blob = new Blob([JSON.stringify(app, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = 'data.json'; a.click();
-      URL.revokeObjectURL(url);
-      showMsg('dataMessage', 'success', '已导出 data.json，请将此文件放入 GitHub 仓库根目录并 push，其他人即可通过网址查看成绩。');
+    // === Publish: push data.json to GitHub via local server ===
+    async function exportPublishData() {
+      showMsg('dataMessage', 'info', '正在发布到 GitHub...');
+      try {
+        const resp = await fetch('http://127.0.0.1:8033/publish', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(app),
+        });
+        const result = await resp.json();
+        showMsg('dataMessage', result.ok ? 'success' : 'error', result.msg);
+      } catch (e) {
+        // Fallback: download data.json if server not running
+        const blob = new Blob([JSON.stringify(app, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = 'data.json'; a.click();
+        URL.revokeObjectURL(url);
+        showMsg('dataMessage', 'warn', '本地发布服务未运行，已导出 data.json 文件。请在终端运行: python3 publish_server.py');
+      }
     }
 
     // === Init: try loading published data.json (for GitHub Pages viewers) ===
