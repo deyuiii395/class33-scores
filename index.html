@@ -1,0 +1,1499 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>高33班成绩分析系统</title>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #f6fbf7;
+      --bg-soft: #eef7f1;
+      --panel: #ffffff;
+      --text: #143129;
+      --muted: #5d766d;
+      --line: #d2e6da;
+      --primary: #177a52;
+      --primary-soft: #dbf3e8;
+      --accent: #e5783b;
+      --danger: #be3f3f;
+      --warn: #996a1e;
+      --shadow: 0 14px 34px rgba(19, 68, 50, 0.1);
+      --radius-lg: 18px;
+      --radius-md: 12px;
+      --radius-sm: 10px;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0; padding: 0;
+      background:
+        radial-gradient(circle at 8% -20%, #d6f0e1 0%, transparent 45%),
+        radial-gradient(circle at 90% 0%, #ffe6d5 0%, transparent 35%),
+        var(--bg);
+      color: var(--text);
+      font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+      min-height: 100%;
+    }
+
+    .container { width: min(1240px, 100% - 2rem); margin: 0 auto 2.5rem; }
+
+    .hero {
+      margin: 1rem auto 1.2rem;
+      width: min(1240px, 100% - 2rem);
+      border: 1px solid #d8eade;
+      border-radius: 22px;
+      background: linear-gradient(135deg, #fefdf7 0%, #f2faf5 55%, #eef8ff 100%);
+      box-shadow: var(--shadow);
+      padding: 1.25rem 1.25rem 1rem;
+      position: relative; overflow: hidden;
+    }
+
+    .hero::after {
+      content: ""; position: absolute;
+      width: 220px; height: 220px; right: -60px; top: -70px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(229, 120, 59, 0.22), rgba(229, 120, 59, 0));
+      pointer-events: none;
+    }
+
+    .hero h1 { margin: 0; font-size: clamp(1.25rem, 2.5vw, 1.9rem); letter-spacing: 0.03em; color: #1c4f3d; }
+    .hero p { margin: 0.35rem 0 0; color: var(--muted); font-size: 0.94rem; }
+
+    .meta-row { margin-top: 0.85rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.6rem; }
+
+    .badge {
+      border: 1px solid #d9e9df; background: #ffffffcf; border-radius: 999px;
+      padding: 0.4rem 0.78rem; font-size: 0.85rem; color: #2c5a4a;
+      display: inline-flex; align-items: center; justify-content: center; gap: 0.3rem; min-height: 32px;
+    }
+
+    .tabs { display: flex; flex-wrap: wrap; gap: 0.55rem; margin: 1rem 0; }
+
+    .tab-btn {
+      border: 1px solid #cce0d5; background: #fff; color: #2f5d4c;
+      border-radius: 999px; padding: 0.55rem 0.95rem; font-size: 0.9rem;
+      cursor: pointer; transition: all 0.2s ease;
+    }
+    .tab-btn:hover { border-color: #9ec8b4; transform: translateY(-1px); }
+    .tab-btn.active {
+      background: linear-gradient(135deg, #1b7e56, #31986d);
+      border-color: transparent; color: #fff;
+      box-shadow: 0 10px 22px rgba(25, 127, 87, 0.26);
+    }
+
+    .panel {
+      display: none; background: var(--panel); border: 1px solid #d8e9de;
+      border-radius: var(--radius-lg); box-shadow: 0 10px 28px rgba(15, 50, 37, 0.08);
+      padding: 1rem; animation: appear 0.2s ease;
+    }
+    .panel.active { display: block; }
+
+    @keyframes appear { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 0.8rem; }
+
+    .card { background: #fff; border: 1px solid var(--line); border-radius: var(--radius-md); padding: 0.85rem; min-width: 0; }
+    .card h3, .card h4 { margin: 0 0 0.45rem; font-size: 1rem; color: #244d3e; }
+    .card p { margin: 0.22rem 0; color: var(--muted); font-size: 0.88rem; }
+
+    .controls { display: flex; flex-wrap: wrap; gap: 0.55rem; margin-bottom: 0.7rem; align-items: flex-end; }
+    .controls.inline { margin-bottom: 0; }
+
+    label { font-size: 0.82rem; color: #3e6656; font-weight: 600; display: inline-flex; flex-direction: column; gap: 0.3rem; }
+
+    select, input[type="file"], input[type="text"] {
+      border: 1px solid #bfd8ca; border-radius: var(--radius-sm);
+      min-height: 36px; font-size: 0.9rem; padding: 0.35rem 0.6rem;
+      color: var(--text); background: #fff;
+    }
+    select:focus, input:focus { outline: none; border-color: #86b8a1; box-shadow: 0 0 0 3px rgba(90, 166, 133, 0.18); }
+
+    .btn {
+      border: 0; border-radius: 10px; min-height: 36px; padding: 0.46rem 0.9rem;
+      font-size: 0.9rem; font-weight: 600; cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .btn:hover { transform: translateY(-1px); }
+    .btn.primary { background: linear-gradient(135deg, #1d825a, #2f976c); color: #fff; box-shadow: 0 8px 20px rgba(25, 125, 86, 0.24); }
+    .btn.secondary { background: #eef7f2; color: #245744; border: 1px solid #c7ddd1; }
+    .btn.warn { background: #fff4e8; color: #8e531f; border: 1px solid #f2d4b8; }
+    .btn.danger { background: #fceeee; color: #8f3131; border: 1px solid #efc5c5; }
+    .btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
+
+    .message { border-radius: 12px; padding: 0.58rem 0.74rem; font-size: 0.86rem; margin-top: 0.55rem; display: none; border: 1px solid transparent; }
+    .message.info { background: #edf4ff; border-color: #cfdefa; color: #315695; display: block; }
+    .message.success { background: #eaf9f0; border-color: #c6ead4; color: #226145; display: block; }
+    .message.warn { background: #fff6eb; border-color: #f4ddbe; color: #8d561f; display: block; }
+    .message.error { background: #fdeeee; border-color: #f2cdcd; color: #922f2f; display: block; }
+
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); gap: 0.65rem; margin: 0.7rem 0 0.5rem; }
+    .stat-card { background: linear-gradient(135deg, #f5fcf7, #ffffff); border: 1px solid #d8e9df; border-radius: 12px; padding: 0.6rem; }
+    .stat-card .label { font-size: 0.8rem; color: var(--muted); }
+    .stat-card .value { margin-top: 0.18rem; font-size: 1.12rem; font-weight: 700; color: #1f533f; }
+
+    .table-wrap { margin-top: 0.6rem; border: 1px solid #d8e8de; border-radius: 12px; overflow: auto; max-height: 500px; background: #fff; }
+    table { border-collapse: collapse; width: 100%; min-width: 820px; }
+    th, td { border-bottom: 1px solid #ebf2ee; padding: 0.5rem; text-align: center; font-size: 0.84rem; white-space: nowrap; }
+    thead th { position: sticky; top: 0; z-index: 2; background: #f4fbf7; color: #2e5c4b; font-weight: 700; }
+    tbody tr:nth-child(2n) { background: #fbfefc; }
+
+    .tag { display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; padding: 0.17rem 0.55rem; font-size: 0.76rem; border: 1px solid #d4e5db; color: #355f50; background: #f7fcf9; }
+    .tag.warn { border-color: #f0d3b3; background: #fff6ea; color: #8d5a23; }
+    .tag.good { border-color: #c2e2cf; background: #eaf8f0; color: #206145; }
+
+    .mini-note { font-size: 0.82rem; color: #5c746a; margin-top: 0.5rem; }
+
+    .round-list { display: flex; flex-wrap: wrap; gap: 0.45rem; margin-top: 0.3rem; }
+    .round-chip {
+      display: inline-flex; align-items: center; gap: 0.35rem;
+      border: 1px solid #d4e5db; border-radius: 999px; padding: 0.25rem 0.42rem 0.25rem 0.55rem;
+      background: #f7fcf9; font-size: 0.8rem; color: #335b4d;
+    }
+    .chip-btn { width: 20px; height: 20px; border: 0; border-radius: 50%; font-size: 0.74rem; line-height: 1; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+    .chip-delete { background: #f2d9d9; color: #8b3c3c; }
+    .chip-rename { background: #d9e8f2; color: #3c5f8b; margin-left: 2px; }
+
+    .chart-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 0.8rem; margin-top: 0.65rem; }
+    .chart-card { border: 1px solid #d6e8de; border-radius: 14px; background: #fff; padding: 0.66rem; }
+    .chart-card h4 { margin: 0 0 0.4rem; font-size: 0.92rem; color: #244d3e; }
+    .chart-wrap { position: relative; height: 280px; }
+    .chart-wrap canvas { width: 100% !important; height: 100% !important; }
+
+    .empty { border: 1px dashed #c6ddcf; border-radius: 12px; background: #f8fcfa; color: #608074; padding: 1rem; text-align: center; font-size: 0.9rem; }
+
+    .preview-box { margin-top: 0.8rem; border: 1px solid #b8d4c5; border-radius: 12px; background: #f7fcf9; padding: 0.8rem; }
+    .preview-box h4 { margin: 0 0 0.5rem; color: #1c4f3d; }
+    .round-name-row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem; font-size: 0.85rem; }
+    .round-name-row input { width: 140px; }
+    .round-name-row .col-label { color: var(--muted); min-width: 60px; }
+
+    @media (max-width: 768px) {
+      .container, .hero { width: calc(100% - 1rem); }
+      .panel { padding: 0.75rem; }
+      table { min-width: 700px; }
+      .chart-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <h1>高33班成绩分析系统</h1>
+    <p>单文件离线版 · 按学科上传 Excel · 本地保存（不联网）</p>
+    <div class="meta-row">
+      <div class="badge" id="metaStudentCount">学生数：0</div>
+      <div class="badge" id="metaRoundCount">考试轮次：0</div>
+      <div class="badge" id="metaSubjectCount">已录入学科：0</div>
+      <div class="badge" id="metaLastUpdate">最后更新：尚无</div>
+    </div>
+  </header>
+
+  <main class="container">
+    <nav class="tabs">
+      <button class="tab-btn active" data-tab="data">1. 数据管理</button>
+      <button class="tab-btn" data-tab="summary">2. 单次考试汇总</button>
+      <button class="tab-btn" data-tab="subject">3. 单科纵向分析</button>
+      <button class="tab-btn" data-tab="student">4. 学生个人档案</button>
+      <button class="tab-btn" data-tab="progress">5. 进退步统计</button>
+    </nav>
+
+    <!-- 数据管理 -->
+    <section class="panel active" id="panel-data">
+      <div class="grid">
+        <article class="card">
+          <h3>上传成绩（按学科）</h3>
+          <div class="controls">
+            <label>学科
+              <select id="uploadSubject"></select>
+            </label>
+            <label>选择 Excel
+              <input id="uploadFile" type="file" accept=".xlsx,.xls" />
+            </label>
+          </div>
+          <p class="mini-note">Excel 格式：第一行可以是标题，表头需含"考号"和"姓名"，其余列为考试轮次。上传后可在预览中重命名轮次。</p>
+          <div id="previewArea" style="display:none"></div>
+          <div id="dataMessage" class="message"></div>
+        </article>
+
+        <article class="card">
+          <h3>全局规则</h3>
+          <p>分值：语文/数学/英语各 <b>150</b>，物理/化学/生物/政治各 <b>100</b>。</p>
+          <p>总分：<b>750</b>（语数英物化 + 生/政二选一，按学生自动判断）。</p>
+          <p>及格线：单科满分的 60%，总分 450。</p>
+          <div class="controls inline" style="margin-top:0.5rem">
+            <button class="btn primary" id="publishBtn">发布数据 (data.json)</button>
+            <button class="btn secondary" id="downloadBackupBtn">导出备份</button>
+            <button class="btn warn" id="restoreBackupBtn">导入备份</button>
+            <button class="btn danger" id="clearDataBtn">清空全部数据</button>
+            <input id="backupInput" type="file" accept=".json" style="display:none" />
+          </div>
+          <p class="mini-note">发布：导出 data.json → 放入 GitHub 仓库 → push → 其他人通过网址查看成绩</p>
+        </article>
+      </div>
+
+      <div class="card" style="margin-top:0.85rem">
+        <h4>考试轮次（点击重命名）</h4>
+        <div id="roundList" class="round-list"></div>
+      </div>
+
+      <div class="card" style="margin-top:0.85rem">
+        <h4>学科数据概览</h4>
+        <div class="table-wrap" id="subjectOverviewWrap"></div>
+      </div>
+
+      <div class="card" style="margin-top:0.85rem">
+        <h4>学生名册</h4>
+        <div class="table-wrap" id="studentPreviewWrap"></div>
+      </div>
+    </section>
+
+    <!-- 单次考试汇总 -->
+    <section class="panel" id="panel-summary">
+      <div class="controls">
+        <label>选择考试轮次
+          <select id="summaryRound"></select>
+        </label>
+        <button class="btn primary" id="exportSummaryBtn">导出本轮排名 Excel</button>
+      </div>
+      <div id="summaryHint" class="mini-note"></div>
+      <div id="summaryStats" class="stats-grid"></div>
+      <div class="card" style="margin-top:0.75rem">
+        <h4>总分排名</h4>
+        <div class="table-wrap" id="summaryTableWrap"></div>
+      </div>
+      <div class="card" style="margin-top:0.75rem">
+        <h4>各科统计</h4>
+        <div class="table-wrap" id="summaryStatTableWrap"></div>
+      </div>
+    </section>
+
+    <!-- 单科纵向分析 -->
+    <section class="panel" id="panel-subject">
+      <div class="controls">
+        <label>选择学科
+          <select id="analysisSubject"></select>
+        </label>
+        <label>分布图轮次
+          <select id="analysisRound"></select>
+        </label>
+      </div>
+      <div class="chart-grid">
+        <div class="chart-card">
+          <h4>各轮趋势（均分/最高/最低）</h4>
+          <div class="chart-wrap"><canvas id="trendChart"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <h4>分数段分布</h4>
+          <div class="chart-wrap"><canvas id="distChart"></canvas></div>
+        </div>
+      </div>
+      <div class="card" style="margin-top:0.75rem">
+        <h4>该学科各轮统计明细</h4>
+        <div class="table-wrap" id="analysisTableWrap"></div>
+      </div>
+      <div class="card" style="margin-top:0.75rem">
+        <h4 style="display:flex;align-items:center;gap:0.5rem">
+          该轮成绩明细
+          <button class="btn secondary" id="detailSortBtn" style="font-size:0.75rem;padding:0.2rem 0.6rem;min-height:auto">分数 ↓</button>
+        </h4>
+        <div class="table-wrap" id="analysisDetailWrap"></div>
+      </div>
+    </section>
+
+    <!-- 学生个人档案 -->
+    <section class="panel" id="panel-student">
+      <div class="controls">
+        <label>选择学生
+          <select id="profileStudent"></select>
+        </label>
+        <label>雷达图轮次
+          <select id="profileRound"></select>
+        </label>
+      </div>
+      <div class="chart-grid">
+        <div class="chart-card">
+          <h4>各科能力（百分制归一）</h4>
+          <div class="chart-wrap"><canvas id="radarChart"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <h4>总分与排名变化</h4>
+          <div class="chart-wrap"><canvas id="studentTrendChart"></canvas></div>
+        </div>
+      </div>
+      <div class="card" style="margin-top:0.75rem">
+        <h4>历次考试明细</h4>
+        <div class="table-wrap" id="profileTableWrap"></div>
+      </div>
+    </section>
+
+    <!-- 进退步统计 -->
+    <section class="panel" id="panel-progress">
+      <div class="controls">
+        <label>起始轮次
+          <select id="progressFrom"></select>
+        </label>
+        <label>对比轮次
+          <select id="progressTo"></select>
+        </label>
+      </div>
+      <div id="progressHint" class="mini-note"></div>
+      <div class="card" style="margin-top:0.75rem">
+        <h4>排名变动（正数=进步）</h4>
+        <div class="table-wrap" id="progressTableWrap"></div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+  (() => {
+    // === Constants ===
+    const STORAGE_KEY = 'class33-v2';
+    const CORE_SUBJECTS = ['chinese', 'math', 'english', 'physics', 'chemistry'];
+    const ELECTIVE_SUBJECTS = ['biology', 'politics'];
+    const ALL_SUBJECTS = [...CORE_SUBJECTS, ...ELECTIVE_SUBJECTS];
+
+    const SUBJECT_DEFS = [
+      { key: 'chinese',   label: '语文', max: 150, color: '#1b7a53' },
+      { key: 'math',      label: '数学', max: 150, color: '#278f63' },
+      { key: 'english',   label: '英语', max: 150, color: '#38a072' },
+      { key: 'physics',   label: '物理', max: 100, color: '#3b7eb4' },
+      { key: 'chemistry', label: '化学', max: 100, color: '#5c67b8' },
+      { key: 'biology',   label: '生物', max: 100, color: '#d27734' },
+      { key: 'politics',  label: '政治', max: 100, color: '#c74747' },
+    ];
+    const SUB = Object.fromEntries(SUBJECT_DEFS.map(s => [s.key, s]));
+    const TOTAL_MAX = 750;
+
+    // === State ===
+    let app = loadState();
+    let pendingImport = null; // { subjectKey, rounds: [{key, name}], students: [{examNo, name, scores:{roundKey: value}}] }
+    let activeTab = 'data';
+    const charts = {};
+
+    // === Helpers ===
+    const $ = id => document.getElementById(id);
+
+    function fmt(v, d = 1) {
+      if (v == null || isNaN(v)) return '-';
+      return Number(v).toFixed(d);
+    }
+
+    function fmtDate(iso) {
+      if (!iso) return '尚无';
+      return new Date(iso).toLocaleString('zh-CN', { hour12: false, month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+    }
+
+    function sortRounds(rounds) {
+      return [...rounds].sort((a, b) => String(a).localeCompare(String(b), 'zh', { numeric: true }));
+    }
+
+    // === Data Layer ===
+    function createEmpty() {
+      return { version: 2, students: {}, scores: {}, roundNames: {}, meta: {}, updatedAt: null };
+    }
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return createEmpty();
+        const s = JSON.parse(raw);
+        if (!s || s.version !== 2) return createEmpty();
+        return s;
+      } catch { return createEmpty(); }
+    }
+
+    function save() {
+      app.updatedAt = new Date().toISOString();
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(app));
+    }
+
+    function getStudents() {
+      return Object.values(app.students).sort((a, b) => {
+        const an = Number(a.examNo), bn = Number(b.examNo);
+        if (isFinite(an) && isFinite(bn)) return an - bn;
+        return String(a.examNo).localeCompare(String(b.examNo), 'zh', { numeric: true });
+      });
+    }
+
+    function getRounds() {
+      const set = new Set();
+      for (const subKey of ALL_SUBJECTS) {
+        for (const round of Object.keys(app.scores[subKey] || {})) set.add(round);
+      }
+      return sortRounds(set);
+    }
+
+    function roundName(key) {
+      return app.roundNames[key] || key;
+    }
+
+    function getScore(subKey, round, examNo) {
+      const v = app.scores?.[subKey]?.[round]?.[examNo];
+      return (v != null && isFinite(Number(v))) ? Number(v) : null;
+    }
+
+    // Per-student elective detection
+    function getStudentElective(round, examNo) {
+      const bio = getScore('biology', round, examNo);
+      const pol = getScore('politics', round, examNo);
+      if (bio != null && pol == null) return 'biology';
+      if (pol != null && bio == null) return 'politics';
+      if (bio != null && pol != null) return bio >= pol ? 'biology' : 'politics';
+      return null;
+    }
+
+    function getStudentTotal(round, examNo) {
+      let total = 0;
+      for (const sub of CORE_SUBJECTS) {
+        const s = getScore(sub, round, examNo);
+        if (s == null) return null;
+        total += s;
+      }
+      const elKey = getStudentElective(round, examNo);
+      if (!elKey) return null;
+      const elScore = getScore(elKey, round, examNo);
+      if (elScore == null) return null;
+      return total + elScore;
+    }
+
+    function calcStats(values, fullScore) {
+      if (!values.length) return { avg: null, max: null, min: null, median: null, passRate: null, count: 0 };
+      const sorted = [...values].sort((a, b) => a - b);
+      const sum = sorted.reduce((a, b) => a + b, 0);
+      const mid = sorted.length % 2 === 0
+        ? (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2
+        : sorted[Math.floor(sorted.length / 2)];
+      const passLine = fullScore * 0.6;
+      return {
+        avg: sum / sorted.length,
+        max: sorted[sorted.length - 1],
+        min: sorted[0],
+        median: mid,
+        passRate: sorted.filter(v => v >= passLine).length / sorted.length,
+        count: sorted.length,
+      };
+    }
+
+    function rankBy(items, getValue) {
+      const sorted = [...items].sort((a, b) => getValue(b) - getValue(a));
+      let rank = 0, last = null;
+      return sorted.map((item, i) => {
+        const v = getValue(item);
+        if (v !== last) { rank = i + 1; last = v; }
+        return { ...item, rank };
+      });
+    }
+
+    // === Excel Parsing ===
+    function parseExcel(buffer) {
+      const wb = XLSX.read(new Uint8Array(buffer), { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null });
+
+      // Find header row with 考号 + 姓名
+      let hIdx = -1, idCol = -1, nameCol = -1;
+      for (let i = 0; i < Math.min(5, rows.length); i++) {
+        const row = (rows[i] || []).map(c => String(c || '').trim());
+        const ic = row.findIndex(c => /^考号$|^学号$|^序号$/.test(c));
+        const nc = row.findIndex(c => /^姓名$|^名字$/.test(c));
+        if (ic >= 0 && nc >= 0) { hIdx = i; idCol = ic; nameCol = nc; break; }
+      }
+      if (hIdx < 0) throw new Error('未找到含"考号"和"姓名"的表头行');
+
+      const header = rows[hIdx].map(c => String(c ?? '').trim());
+      // Remaining columns = round keys
+      const roundCols = [];
+      for (let c = 0; c < header.length; c++) {
+        if (c === idCol || c === nameCol) continue;
+        let key = header[c];
+        if (!key) continue;
+        if (/^\d+(\.\d+)?$/.test(key)) key = String(Math.trunc(Number(key)));
+        roundCols.push({ col: c, key });
+      }
+      if (!roundCols.length) throw new Error('表头中未找到考试轮次列');
+
+      const students = [];
+      for (let r = hIdx + 1; r < rows.length; r++) {
+        const row = rows[r] || [];
+        let examNo = row[idCol];
+        if (examNo == null || String(examNo).trim() === '') continue;
+        examNo = String(examNo).trim();
+        if (/^\d+(\.\d+)?$/.test(examNo)) examNo = String(Math.trunc(Number(examNo)));
+        const name = String(row[nameCol] || '').trim();
+        const scores = {};
+        for (const rc of roundCols) {
+          const v = row[rc.col];
+          if (v == null || v === '') continue;
+          const n = Number(String(v).replace(/,/g, ''));
+          if (isFinite(n)) scores[rc.key] = Math.round(n * 100) / 100;
+        }
+        if (Object.keys(scores).length > 0) students.push({ examNo, name, scores });
+      }
+
+      return { roundKeys: roundCols.map(r => r.key), students };
+    }
+
+    // === Upload & Preview ===
+    function handleFileSelect() {
+      const file = $('uploadFile').files?.[0];
+      const subKey = $('uploadSubject').value;
+      if (!file || !subKey) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const parsed = parseExcel(e.target.result);
+          if (!parsed.students.length) throw new Error('未解析到有效成绩数据');
+
+          // Build pending import with editable round names
+          const existingRounds = getRounds();
+          const roundMappings = parsed.roundKeys.map(key => {
+            // If this round already exists in the system, use its existing name
+            const existing = app.roundNames[key];
+            return { key, name: existing || key };
+          });
+
+          pendingImport = { subjectKey: subKey, rounds: roundMappings, students: parsed.students };
+          showPreview();
+        } catch (err) {
+          showMsg('dataMessage', 'error', '解析失败：' + err.message);
+          $('previewArea').style.display = 'none';
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    function showPreview() {
+      if (!pendingImport) return;
+      const { subjectKey, rounds, students } = pendingImport;
+      const subLabel = SUB[subjectKey].label;
+
+      // Collect existing round names from all subjects for the dropdown
+      const existingRounds = getRounds();
+
+      let html = `<div class="preview-box">
+        <h4>预览：${subLabel} - ${students.length} 名学生，${rounds.length} 个轮次</h4>
+        <p class="mini-note" style="margin:0 0 0.5rem">请为每列选择对应的考试轮次（Excel 列名不同没关系，只要对应到同一轮即可）：</p>`;
+
+      for (let i = 0; i < rounds.length; i++) {
+        const r = rounds[i];
+        // Try to auto-match: exact match from roundNames, or if only 1 column and 1 existing round
+        let autoMatch = app.roundNames[r.key] || '';
+        if (!autoMatch && rounds.length === 1 && existingRounds.length === 1) {
+          autoMatch = existingRounds[0]; // Only 1 column + 1 existing round → auto-match
+        }
+
+        html += `<div class="round-name-row">
+          <span class="col-label">列 "${r.key}" →</span>
+          <select class="round-name-select" data-idx="${i}" style="min-width:140px">`;
+
+        // Option group: existing rounds
+        if (existingRounds.length > 0) {
+          html += `<optgroup label="已有轮次">`;
+          for (const er of existingRounds) {
+            const sel = (autoMatch === er) ? ' selected' : '';
+            html += `<option value="${er}"${sel}>${er}</option>`;
+          }
+          html += `</optgroup>`;
+        }
+
+        // Option: new round (custom name)
+        const isNew = !autoMatch || !existingRounds.includes(autoMatch);
+        html += `<optgroup label="新建轮次">`;
+        html += `<option value="__new__"${isNew ? ' selected' : ''}>自定义名称...</option>`;
+        html += `</optgroup></select>`;
+
+        // Text input for custom name (shown when "新建" is selected)
+        const defaultName = isNew ? (r.name || r.key) : '';
+        html += `<input type="text" class="round-name-custom" data-idx="${i}" value="${defaultName}" placeholder="输入轮次名称" style="width:120px;${isNew ? '' : 'display:none'}" />`;
+        html += `</div>`;
+      }
+
+      // Sample table
+      html += `<div class="table-wrap" style="max-height:200px;margin-top:0.5rem"><table>
+        <thead><tr><th>考号</th><th>姓名</th>`;
+      for (const r of rounds) html += `<th>列"${r.key}"</th>`;
+      html += `</tr></thead><tbody>`;
+      for (const st of students.slice(0, 8)) {
+        html += `<tr><td>${st.examNo}</td><td>${st.name}</td>`;
+        for (const r of rounds) html += `<td>${st.scores[r.key] != null ? st.scores[r.key] : '-'}</td>`;
+        html += `</tr>`;
+      }
+      if (students.length > 8) html += `<tr><td colspan="${rounds.length + 2}" style="color:var(--muted)">... 共 ${students.length} 人</td></tr>`;
+      html += `</tbody></table></div>`;
+
+      html += `<div class="controls inline" style="margin-top:0.6rem">
+        <button class="btn primary" id="confirmImportBtn">确认导入</button>
+        <button class="btn secondary" id="cancelImportBtn">取消</button>
+      </div></div>`;
+
+      $('previewArea').innerHTML = html;
+      $('previewArea').style.display = 'block';
+
+      // Toggle custom input visibility based on dropdown
+      $('previewArea').querySelectorAll('.round-name-select').forEach(sel => {
+        sel.addEventListener('change', () => {
+          const idx = sel.dataset.idx;
+          const customInput = $('previewArea').querySelector(`.round-name-custom[data-idx="${idx}"]`);
+          customInput.style.display = sel.value === '__new__' ? '' : 'none';
+        });
+      });
+
+      $('confirmImportBtn').addEventListener('click', confirmImport);
+      $('cancelImportBtn').addEventListener('click', cancelImport);
+    }
+
+    function confirmImport() {
+      if (!pendingImport) return;
+      const { subjectKey, rounds, students } = pendingImport;
+
+      // Read final round names from dropdown + custom input
+      const selects = $('previewArea').querySelectorAll('.round-name-select');
+      selects.forEach(sel => {
+        const idx = Number(sel.dataset.idx);
+        if (sel.value === '__new__') {
+          const customInput = $('previewArea').querySelector(`.round-name-custom[data-idx="${idx}"]`);
+          const name = customInput?.value.trim();
+          if (name) rounds[idx].name = name;
+        } else {
+          rounds[idx].name = sel.value; // Use selected existing round name
+        }
+      });
+
+      // Merge into app state
+      if (!app.scores[subjectKey]) app.scores[subjectKey] = {};
+
+      for (const st of students) {
+        // Register student
+        if (!app.students[st.examNo]) {
+          app.students[st.examNo] = { examNo: st.examNo, name: st.name };
+        } else if (st.name && !app.students[st.examNo].name) {
+          app.students[st.examNo].name = st.name;
+        }
+
+        // Merge scores: use the NAME as the round key (not the column header)
+        for (const r of rounds) {
+          const score = st.scores[r.key];
+          if (score == null) continue;
+          const roundKey = r.name; // Use the display name as key
+          if (!app.scores[subjectKey][roundKey]) app.scores[subjectKey][roundKey] = {};
+          app.scores[subjectKey][roundKey][st.examNo] = score;
+        }
+      }
+
+      // Save round names: map raw column key → display name
+      // So next upload with same column headers auto-fills the names
+      for (const r of rounds) {
+        app.roundNames[r.key] = r.name;
+      }
+
+      // Update meta
+      if (!app.meta[subjectKey]) app.meta[subjectKey] = { fileCount: 0, lastUploadAt: null };
+      app.meta[subjectKey].fileCount++;
+      app.meta[subjectKey].lastUploadAt = new Date().toISOString();
+
+      save();
+      pendingImport = null;
+      $('previewArea').style.display = 'none';
+      $('uploadFile').value = '';
+      renderDataPanel();
+      renderMeta();
+      showMsg('dataMessage', 'success', `导入成功：${SUB[subjectKey].label}，${students.length} 人，${rounds.length} 个轮次`);
+    }
+
+    function cancelImport() {
+      pendingImport = null;
+      $('previewArea').style.display = 'none';
+      $('uploadFile').value = '';
+    }
+
+    // === Render Helpers ===
+    function showMsg(id, type, text) {
+      const el = $(id);
+      if (!el) return;
+      el.className = text ? `message ${type}` : 'message';
+      el.textContent = text || '';
+    }
+
+    function fillSelect(el, options, current, emptyLabel = '暂无数据') {
+      if (!el) return '';
+      const prev = current !== undefined ? String(current) : el.value;
+      el.innerHTML = '';
+      if (!options.length) {
+        el.innerHTML = `<option value="" disabled selected>${emptyLabel}</option>`;
+        el.disabled = true;
+        return '';
+      }
+      el.disabled = false;
+      for (const opt of options) {
+        const o = document.createElement('option');
+        o.value = String(opt.value);
+        o.textContent = opt.label;
+        el.appendChild(o);
+      }
+      const exists = options.some(o => String(o.value) === prev);
+      const val = exists ? prev : String(options[0].value);
+      el.value = val;
+      return val;
+    }
+
+    function destroyChart(key) {
+      if (charts[key]) { charts[key].destroy(); charts[key] = null; }
+    }
+
+    function makeChart(key, canvasId, config) {
+      destroyChart(key);
+      const canvas = $(canvasId);
+      if (!canvas) return;
+      charts[key] = new Chart(canvas, config);
+    }
+
+    // === Render: Meta ===
+    function renderMeta() {
+      const students = getStudents();
+      const rounds = getRounds();
+      const subjects = ALL_SUBJECTS.filter(k => Object.keys(app.scores[k] || {}).length > 0).length;
+      $('metaStudentCount').textContent = `学生数：${students.length}`;
+      $('metaRoundCount').textContent = `考试轮次：${rounds.length}`;
+      $('metaSubjectCount').textContent = `已录入学科：${subjects}`;
+      $('metaLastUpdate').textContent = `最后更新：${fmtDate(app.updatedAt)}`;
+    }
+
+    // === Render: Data Panel ===
+    function renderDataPanel() {
+      showMsg('dataMessage', '', '');
+      fillSelect($('uploadSubject'),
+        SUBJECT_DEFS.map(s => ({ value: s.key, label: `${s.label}（${s.max}分）` })),
+        $('uploadSubject').value || 'math'
+      );
+
+      // Round list with rename/delete
+      const rounds = getRounds();
+      const rl = $('roundList');
+      if (!rounds.length) {
+        rl.innerHTML = '<div class="empty" style="width:100%">暂无考试轮次，请先上传成绩</div>';
+      } else {
+        rl.innerHTML = rounds.map(r => `
+          <div class="round-chip">
+            <span>${roundName(r)}</span>
+            <button class="chip-btn chip-rename" data-round="${r}" title="重命名">&#9998;</button>
+            <button class="chip-btn chip-delete" data-round="${r}" title="删除">&#215;</button>
+          </div>
+        `).join('');
+      }
+
+      // Subject overview table - show actual round keys for debugging
+      const sowrap = $('subjectOverviewWrap');
+      const soRows = SUBJECT_DEFS.map(s => {
+        const data = app.scores[s.key] || {};
+        const roundKeys = Object.keys(data);
+        const scoreCount = Object.values(data).reduce((sum, r) => sum + Object.keys(r).length, 0);
+        const meta = app.meta[s.key] || {};
+        const roundInfo = roundKeys.length > 0 ? roundKeys.join(', ') : '-';
+        return `<tr>
+          <td>${s.label}</td><td>${s.max}</td><td>${roundKeys.length}</td>
+          <td>${scoreCount}</td><td style="font-size:0.75rem;color:var(--muted);max-width:200px;overflow:hidden;text-overflow:ellipsis">${roundInfo}</td>
+          <td>${fmtDate(meta.lastUploadAt)}</td>
+          <td><button class="btn danger" style="font-size:0.75rem;padding:0.2rem 0.5rem;min-height:auto" data-delete-subject="${s.key}" ${scoreCount === 0 ? 'disabled' : ''}>删除</button></td>
+        </tr>`;
+      }).join('');
+      sowrap.innerHTML = `<table style="min-width:600px">
+        <thead><tr><th>学科</th><th>满分</th><th>轮次数</th><th>成绩条目</th><th>轮次名称</th><th>最后导入</th><th>操作</th></tr></thead>
+        <tbody>${soRows}</tbody></table>`;
+
+      // Student list
+      const students = getStudents();
+      const spwrap = $('studentPreviewWrap');
+      if (!students.length) {
+        spwrap.innerHTML = '<div class="empty">还没有学生数据，请先上传 Excel。</div>';
+      } else {
+        const rows = students.map(s => `<tr><td>${s.examNo}</td><td>${s.name || '-'}</td></tr>`).join('');
+        spwrap.innerHTML = `<table style="min-width:200px"><thead><tr><th>考号</th><th>姓名</th></tr></thead><tbody>${rows}</tbody></table>`;
+      }
+    }
+
+    // === Render: Summary Panel ===
+    function renderSummaryPanel() {
+      const rounds = getRounds();
+      const selRound = fillSelect($('summaryRound'),
+        rounds.map(r => ({ value: r, label: roundName(r) })),
+        $('summaryRound').value
+      );
+
+      const hint = $('summaryHint');
+      const statsWrap = $('summaryStats');
+      const tableWrap = $('summaryTableWrap');
+      const statTableWrap = $('summaryStatTableWrap');
+      const exportBtn = $('exportSummaryBtn');
+
+      if (!selRound) {
+        statsWrap.innerHTML = '';
+        tableWrap.innerHTML = '<div class="empty">请先导入数据。</div>';
+        statTableWrap.innerHTML = '';
+        hint.textContent = '';
+        exportBtn.disabled = true;
+        return;
+      }
+
+      const students = getStudents();
+
+      // Detect which subjects have data for this round
+      const availableSubs = ALL_SUBJECTS.filter(s => {
+        const rd = app.scores[s]?.[selRound];
+        return rd && Object.keys(rd).length > 0;
+      });
+      // Split into available core and available electives
+      const availCore = availableSubs.filter(s => CORE_SUBJECTS.includes(s));
+      const availElective = availableSubs.filter(s => ELECTIVE_SUBJECTS.includes(s));
+      const totalMax = availCore.reduce((sum, s) => sum + SUB[s].max, 0)
+        + (availElective.length > 0 ? Math.max(...availElective.map(s => SUB[s].max)) : 0);
+
+      // Build rows: total = sum of available subjects for each student
+      const rows = [];
+      for (const st of students) {
+        const subScores = {};
+        let total = 0;
+        let missing = [];
+
+        for (const sub of availCore) {
+          const score = getScore(sub, selRound, st.examNo);
+          subScores[sub] = score;
+          if (score == null) missing.push(SUB[sub].label);
+          else total += score;
+        }
+
+        // Elective: use whichever this student has
+        let elKey = null;
+        if (availElective.length > 0) {
+          elKey = getStudentElective(selRound, st.examNo);
+          // If auto-detect fails but we have elective data, try each
+          if (!elKey) {
+            for (const ek of availElective) {
+              if (getScore(ek, selRound, st.examNo) != null) { elKey = ek; break; }
+            }
+          }
+          if (elKey) {
+            const elScore = getScore(elKey, selRound, st.examNo);
+            subScores[elKey] = elScore;
+            if (elScore == null) missing.push(SUB[elKey].label);
+            else total += elScore;
+          } else {
+            missing.push('选考');
+          }
+        }
+
+        const isComplete = missing.length === 0 && availableSubs.length > 0;
+        rows.push({ examNo: st.examNo, name: st.name, total: isComplete ? total : null, partialTotal: total, elKey, subScores, missing, isComplete });
+      }
+
+      // Only rank students who have all available subjects
+      const complete = rows.filter(r => r.isComplete);
+      const incomplete = rows.filter(r => !r.isComplete);
+      const ranked = rankBy(complete, r => r.total);
+
+      // Subject rank maps
+      const subjectRankMaps = {};
+      for (const sub of availableSubs) {
+        const withScore = students.map(s => ({ examNo: s.examNo, score: getScore(sub, selRound, s.examNo) })).filter(s => s.score != null);
+        const r = rankBy(withScore, x => x.score);
+        subjectRankMaps[sub] = Object.fromEntries(r.map(x => [x.examNo, x.rank]));
+      }
+
+      // Stats
+      const totalScores = ranked.map(r => r.total);
+      const totalStats = calcStats(totalScores, totalMax);
+
+      const subLabels = availableSubs.map(s => SUB[s].label).join('、');
+      const fullOrPartial = availableSubs.length >= 6 ? '（6科齐全）' : `（已录入 ${availableSubs.length} 科：${subLabels}）`;
+      hint.textContent = `轮次：${roundName(selRound)}${fullOrPartial}｜满分 ${totalMax}｜可排名 ${ranked.length} 人｜缺数据 ${incomplete.length} 人`;
+      exportBtn.disabled = !ranked.length;
+
+      statsWrap.innerHTML = [
+        { l: '总分均分', v: fmt(totalStats.avg) },
+        { l: '最高', v: fmt(totalStats.max, 0) },
+        { l: '最低', v: fmt(totalStats.min, 0) },
+        { l: '中位数', v: fmt(totalStats.median) },
+        { l: '及格率', v: totalStats.passRate != null ? fmt(totalStats.passRate * 100) + '%' : '-' },
+        { l: '有效人数', v: totalStats.count },
+      ].map(c => `<div class="stat-card"><div class="label">${c.l}</div><div class="value">${c.v}</div></div>`).join('');
+
+      // Ranking table - only show columns for available subjects
+      const allRows = [...ranked.map(r => ({ ...r, status: null })), ...incomplete.map(r => ({ ...r, rank: null, status: `缺${r.missing.join('/')}` }))];
+      const subHeaders = availCore.map(s => `<th>${SUB[s].label}</th>`).join('') + (availElective.length > 0 ? '<th>选考</th>' : '');
+
+      tableWrap.innerHTML = `<table><thead><tr><th>排名</th><th>考号</th><th>姓名</th>${subHeaders}<th>总分/${totalMax}</th></tr></thead><tbody>` +
+        allRows.map(r => {
+          const rankText = r.rank != null ? r.rank : '-';
+          const cells = availCore.map(s => {
+            const score = r.subScores[s];
+            const sRank = subjectRankMaps[s]?.[r.examNo];
+            return `<td>${score != null ? score : '<span class="tag warn">缺</span>'}${sRank ? `<small style="color:var(--muted)"> (${sRank})</small>` : ''}</td>`;
+          }).join('');
+          let elCell = '';
+          if (availElective.length > 0) {
+            const elLabel = r.elKey ? SUB[r.elKey].label : '-';
+            const elScore = r.elKey ? (r.subScores[r.elKey] ?? '-') : '-';
+            const elRank = r.elKey && subjectRankMaps[r.elKey]?.[r.examNo];
+            elCell = `<td>${elLabel} ${elScore}${elRank ? `<small style="color:var(--muted)"> (${elRank})</small>` : ''}</td>`;
+          }
+          const totalText = r.total != null ? `<b>${r.total}</b>` : `<span style="color:var(--muted)">${r.partialTotal || '-'}</span>`;
+          return `<tr><td>${rankText}</td><td>${r.examNo}</td><td>${r.name || '-'}</td>${cells}${elCell}<td>${totalText}</td></tr>`;
+        }).join('') + '</tbody></table>';
+
+      // Per-subject stats table
+      const statRowsHtml = [...availableSubs.map(s => {
+        const vals = students.map(st => getScore(s, selRound, st.examNo)).filter(v => v != null);
+        const st = calcStats(vals, SUB[s].max);
+        return `<tr><td>${SUB[s].label}</td><td>${SUB[s].max}</td><td>${st.count}</td><td>${fmt(st.avg)}</td><td>${fmt(st.max, 0)}</td><td>${fmt(st.min, 0)}</td><td>${st.passRate != null ? fmt(st.passRate * 100) + '%' : '-'}</td></tr>`;
+      }), (() => {
+        if (!totalScores.length) return '';
+        const st = calcStats(totalScores, totalMax);
+        return `<tr style="font-weight:600"><td>合计</td><td>${totalMax}</td><td>${st.count}</td><td>${fmt(st.avg)}</td><td>${fmt(st.max, 0)}</td><td>${fmt(st.min, 0)}</td><td>${st.passRate != null ? fmt(st.passRate * 100) + '%' : '-'}</td></tr>`;
+      })()].join('');
+
+      statTableWrap.innerHTML = `<table style="min-width:500px"><thead><tr><th>科目</th><th>满分</th><th>人数</th><th>均分</th><th>最高</th><th>最低</th><th>及格率</th></tr></thead><tbody>${statRowsHtml}</tbody></table>`;
+
+      // Store for export
+      renderSummaryPanel._cache = { selRound, ranked, allRows, availableSubs, availCore, availElective, subjectRankMaps, totalMax };
+    }
+
+    // === Render: Subject Panel ===
+    function renderSubjectPanel() {
+      const rounds = getRounds();
+      const selSub = fillSelect($('analysisSubject'),
+        SUBJECT_DEFS.map(s => ({ value: s.key, label: `${s.label}（${s.max}分）` })),
+        $('analysisSubject').value || 'math'
+      );
+      const selRound = fillSelect($('analysisRound'),
+        rounds.map(r => ({ value: r, label: roundName(r) })),
+        $('analysisRound').value
+      );
+
+      const tableWrap = $('analysisTableWrap');
+      if (!selSub || !rounds.length) {
+        tableWrap.innerHTML = '<div class="empty">先导入数据后再查看。</div>';
+        destroyChart('trend'); destroyChart('dist');
+        return;
+      }
+
+      const students = getStudents();
+      const subDef = SUB[selSub];
+      const subRounds = Object.keys(app.scores[selSub] || {});
+      const sortedSubRounds = sortRounds(subRounds);
+
+      // Per-round stats
+      const series = sortedSubRounds.map(r => {
+        const vals = students.map(s => getScore(selSub, r, s.examNo)).filter(v => v != null);
+        return { round: r, stats: calcStats(vals, subDef.max), values: vals };
+      }).filter(s => s.stats.count > 0);
+
+      if (!series.length) {
+        tableWrap.innerHTML = '<div class="empty">该学科暂无数据。</div>';
+        destroyChart('trend'); destroyChart('dist');
+        return;
+      }
+
+      // Trend chart
+      makeChart('trend', 'trendChart', {
+        type: 'line',
+        data: {
+          labels: series.map(s => roundName(s.round)),
+          datasets: [
+            { label: '均分', data: series.map(s => +s.stats.avg.toFixed(1)), borderColor: subDef.color, backgroundColor: subDef.color + '22', tension: 0.25, borderWidth: 2 },
+            { label: '最高', data: series.map(s => s.stats.max), borderColor: '#e5793c', borderDash: [4, 3], tension: 0.25, pointRadius: 3 },
+            { label: '最低', data: series.map(s => s.stats.min), borderColor: '#5f6cae', borderDash: [2, 3], tension: 0.25, pointRadius: 3 },
+          ],
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } } },
+      });
+
+      // Distribution chart for selected round
+      const distRound = selRound && subRounds.includes(selRound) ? selRound : series[series.length - 1].round;
+      const distData = series.find(s => s.round === distRound);
+      const bins = getDistBins(subDef.max);
+      const counts = bins.map(b => distData.values.filter(v => v >= b.min && v < b.max).length);
+
+      makeChart('dist', 'distChart', {
+        type: 'bar',
+        data: {
+          labels: bins.map(b => b.label),
+          datasets: [{ label: `${roundName(distRound)} 人数`, data: counts, backgroundColor: ['#f8c9b1', '#fbe1b7', '#b9efd7', '#c6e4fb', '#deecf7'], borderWidth: 0, borderRadius: 4 }],
+        },
+        options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } },
+      });
+
+      // Stats table
+      tableWrap.innerHTML = `<table style="min-width:450px"><thead><tr><th>轮次</th><th>人数</th><th>均分</th><th>最高</th><th>最低</th><th>中位数</th><th>及格率</th></tr></thead><tbody>` +
+        series.map(s => `<tr><td>${roundName(s.round)}</td><td>${s.stats.count}</td><td>${fmt(s.stats.avg)}</td><td>${fmt(s.stats.max, 0)}</td><td>${fmt(s.stats.min, 0)}</td><td>${fmt(s.stats.median)}</td><td>${s.stats.passRate != null ? fmt(s.stats.passRate * 100) + '%' : '-'}</td></tr>`).join('') +
+        '</tbody></table>';
+
+      // Detail table for selected round (sortable)
+      renderSubjectDetail(selSub, distRound, students, subDef);
+    }
+
+    // Sort state for subject detail
+    let subjectDetailSortDesc = true;
+
+    function renderSubjectDetail(subKey, round, students, subDef) {
+      const detailWrap = $('analysisDetailWrap');
+      const sortBtn = $('detailSortBtn');
+      if (!round || !subKey) {
+        detailWrap.innerHTML = '<div class="empty">无数据</div>';
+        return;
+      }
+
+      // Build student score list
+      let rows = students.map(s => {
+        const score = getScore(subKey, round, s.examNo);
+        return { examNo: s.examNo, name: s.name, score };
+      }).filter(r => r.score != null);
+
+      // Sort
+      rows.sort((a, b) => subjectDetailSortDesc ? b.score - a.score : a.score - b.score);
+
+      // Assign ranks (by descending score)
+      const sorted = [...rows].sort((a, b) => b.score - a.score);
+      let rank = 0, last = null;
+      const rankMap = {};
+      sorted.forEach((r, i) => {
+        if (r.score !== last) { rank = i + 1; last = r.score; }
+        rankMap[r.examNo] = rank;
+      });
+
+      const passLine = subDef.max * 0.6;
+      sortBtn.textContent = subjectDetailSortDesc ? '分数 ↓' : '分数 ↑';
+
+      detailWrap.innerHTML = `<table style="min-width:400px"><thead><tr><th>排名</th><th>考号</th><th>姓名</th><th>分数</th><th>状态</th></tr></thead><tbody>` +
+        rows.map(r => {
+          const tag = r.score >= passLine ? '' : '<span class="tag warn">不及格</span>';
+          return `<tr><td>${rankMap[r.examNo]}</td><td>${r.examNo}</td><td>${r.name || '-'}</td><td><b>${r.score}</b></td><td>${tag}</td></tr>`;
+        }).join('') + '</tbody></table>';
+
+      // Bind sort toggle
+      sortBtn.onclick = () => {
+        subjectDetailSortDesc = !subjectDetailSortDesc;
+        renderSubjectDetail(subKey, round, students, subDef);
+      };
+    }
+
+    function getDistBins(maxScore) {
+      if (maxScore === 150) return [
+        { label: '<90', min: 0, max: 90 },
+        { label: '90-105', min: 90, max: 105 },
+        { label: '105-120', min: 105, max: 120 },
+        { label: '120-135', min: 120, max: 135 },
+        { label: '135+', min: 135, max: 151 },
+      ];
+      return [
+        { label: '<60', min: 0, max: 60 },
+        { label: '60-70', min: 60, max: 70 },
+        { label: '70-80', min: 70, max: 80 },
+        { label: '80-90', min: 80, max: 90 },
+        { label: '90+', min: 90, max: 101 },
+      ];
+    }
+
+    // === Render: Student Panel ===
+    function renderStudentPanel() {
+      const students = getStudents();
+      const rounds = getRounds();
+
+      const selStudent = fillSelect($('profileStudent'),
+        students.map(s => ({ value: s.examNo, label: `${s.examNo} - ${s.name || '未命名'}` })),
+        $('profileStudent').value, '暂无学生'
+      );
+      const selRound = fillSelect($('profileRound'),
+        rounds.map(r => ({ value: r, label: roundName(r) })),
+        $('profileRound').value
+      );
+
+      const tableWrap = $('profileTableWrap');
+      if (!selStudent || !rounds.length) {
+        tableWrap.innerHTML = '<div class="empty">请先导入成绩并选择学生。</div>';
+        destroyChart('radar'); destroyChart('studentTrend');
+        return;
+      }
+
+      // Radar chart for selected round
+      const radarRound = selRound || rounds[rounds.length - 1];
+      const elKey = getStudentElective(radarRound, selStudent);
+      const radarSubs = [...CORE_SUBJECTS, ...(elKey ? [elKey] : [])];
+      const radarValues = radarSubs.map(s => {
+        const score = getScore(s, radarRound, selStudent);
+        return score != null ? +(score / SUB[s].max * 100).toFixed(1) : 0;
+      });
+
+      makeChart('radar', 'radarChart', {
+        type: 'radar',
+        data: {
+          labels: radarSubs.map(s => SUB[s].label),
+          datasets: [{ label: roundName(radarRound), data: radarValues, fill: true, backgroundColor: 'rgba(33,122,84,0.18)', borderColor: '#1d7e56', pointBackgroundColor: '#1d7e56', pointRadius: 3 }],
+        },
+        options: { responsive: true, maintainAspectRatio: false, scales: { r: { suggestedMin: 0, suggestedMax: 100, ticks: { stepSize: 20, backdropColor: 'transparent' } } } },
+      });
+
+      // Score & rank trend - flexible: use available subjects per round
+      const trendData = rounds.map(round => {
+        const avail = ALL_SUBJECTS.filter(s => {
+          const rd = app.scores[s]?.[round];
+          return rd && Object.keys(rd).length > 0;
+        });
+        const availC = avail.filter(s => CORE_SUBJECTS.includes(s));
+        const availE = avail.filter(s => ELECTIVE_SUBJECTS.includes(s));
+
+        // Calculate this student's total from available subjects
+        let myTotal = 0, myComplete = true;
+        for (const sub of availC) {
+          const s = getScore(sub, round, selStudent);
+          if (s == null) { myComplete = false; break; }
+          myTotal += s;
+        }
+        if (myComplete && availE.length > 0) {
+          const elKey = getStudentElective(round, selStudent) || availE.find(ek => getScore(ek, round, selStudent) != null);
+          if (elKey) { const es = getScore(elKey, round, selStudent); if (es != null) myTotal += es; else myComplete = false; }
+          else myComplete = false;
+        }
+        const total = (myComplete && avail.length > 0) ? myTotal : null;
+
+        // Calculate rank: count how many have higher totals
+        let rank = null;
+        if (total != null) {
+          let higher = 0;
+          for (const st of students) {
+            if (st.examNo === selStudent) continue;
+            let t = 0, ok = true;
+            for (const sub of availC) { const s = getScore(sub, round, st.examNo); if (s == null) { ok = false; break; } t += s; }
+            if (!ok) continue;
+            if (availE.length > 0) {
+              const ek = getStudentElective(round, st.examNo) || availE.find(e => getScore(e, round, st.examNo) != null);
+              if (ek) { const es = getScore(ek, round, st.examNo); if (es != null) t += es; else continue; } else continue;
+            }
+            if (t > total) higher++;
+          }
+          rank = higher + 1;
+        }
+        return { round, total, rank };
+      });
+
+      makeChart('studentTrend', 'studentTrendChart', {
+        type: 'line',
+        data: {
+          labels: trendData.map(d => roundName(d.round)),
+          datasets: [
+            { label: '总分', data: trendData.map(d => d.total), yAxisID: 'y', borderColor: '#1f7f57', backgroundColor: '#1f7f5720', spanGaps: true, tension: 0.25 },
+            { label: '排名', data: trendData.map(d => d.rank), yAxisID: 'y1', borderColor: '#cf5d43', backgroundColor: '#cf5d4320', spanGaps: true, tension: 0.2 },
+          ],
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          scales: {
+            y: { type: 'linear', position: 'left', title: { display: true, text: '总分' } },
+            y1: { type: 'linear', position: 'right', reverse: true, title: { display: true, text: '排名' }, grid: { drawOnChartArea: false } },
+          },
+        },
+      });
+
+      // Detail table
+      const allSubs = [...CORE_SUBJECTS, ...ELECTIVE_SUBJECTS];
+      tableWrap.innerHTML = `<table><thead><tr><th>轮次</th>${allSubs.map(s => `<th>${SUB[s].label}</th>`).join('')}<th>选考</th><th>总分</th><th>排名</th></tr></thead><tbody>` +
+        trendData.map(d => {
+          const el = getStudentElective(d.round, selStudent);
+          const cells = allSubs.map(s => {
+            const score = getScore(s, d.round, selStudent);
+            return `<td>${score != null ? score : '-'}</td>`;
+          }).join('');
+          return `<tr><td>${roundName(d.round)}</td>${cells}<td>${el ? SUB[el].label : '-'}</td><td>${d.total != null ? `<b>${d.total}</b>` : '-'}</td><td>${d.rank ?? '-'}</td></tr>`;
+        }).join('') + '</tbody></table>';
+    }
+
+    // === Render: Progress Panel ===
+    function renderProgressPanel() {
+      const rounds = getRounds();
+      const selFrom = fillSelect($('progressFrom'), rounds.map(r => ({ value: r, label: roundName(r) })), $('progressFrom').value);
+      let selTo = fillSelect($('progressTo'), rounds.map(r => ({ value: r, label: roundName(r) })), $('progressTo').value);
+
+      const hint = $('progressHint');
+      const tableWrap = $('progressTableWrap');
+
+      if (rounds.length < 2) {
+        hint.textContent = '至少需要两个轮次。';
+        tableWrap.innerHTML = '<div class="empty">暂无可对比数据。</div>';
+        return;
+      }
+
+      // Auto pick different rounds
+      if (selFrom === selTo) {
+        const idx = rounds.indexOf(selFrom);
+        selTo = rounds[idx === rounds.length - 1 ? Math.max(0, idx - 1) : idx + 1];
+        $('progressTo').value = selTo;
+      }
+
+      const students = getStudents();
+
+      // Build rank maps - use available subjects (same logic as summary)
+      function buildRankMap(round) {
+        const avail = ALL_SUBJECTS.filter(s => {
+          const rd = app.scores[s]?.[round];
+          return rd && Object.keys(rd).length > 0;
+        });
+        const availC = avail.filter(s => CORE_SUBJECTS.includes(s));
+        const availE = avail.filter(s => ELECTIVE_SUBJECTS.includes(s));
+
+        const entries = [];
+        for (const st of students) {
+          let total = 0, complete = true;
+          for (const sub of availC) {
+            const s = getScore(sub, round, st.examNo);
+            if (s == null) { complete = false; break; }
+            total += s;
+          }
+          if (!complete) continue;
+          if (availE.length > 0) {
+            const elKey = getStudentElective(round, st.examNo) || availE.find(ek => getScore(ek, round, st.examNo) != null);
+            if (elKey) {
+              const es = getScore(elKey, round, st.examNo);
+              if (es != null) total += es; else continue;
+            } else { continue; }
+          }
+          entries.push({ examNo: st.examNo, name: st.name, total });
+        }
+        const ranked = rankBy(entries, e => e.total);
+        return Object.fromEntries(ranked.map(r => [r.examNo, { rank: r.rank, total: r.total }]));
+      }
+
+      const fromMap = buildRankMap(selFrom);
+      const toMap = buildRankMap(selTo);
+
+      const compareRows = [];
+      for (const examNo of Object.keys(toMap)) {
+        if (!fromMap[examNo]) continue;
+        const f = fromMap[examNo], t = toMap[examNo];
+        compareRows.push({
+          examNo,
+          name: app.students[examNo]?.name || '-',
+          fromRank: f.rank, toRank: t.rank,
+          rankDelta: f.rank - t.rank,
+          fromTotal: f.total, toTotal: t.total,
+          scoreDelta: t.total - f.total,
+        });
+      }
+      compareRows.sort((a, b) => b.rankDelta - a.rankDelta || b.scoreDelta - a.scoreDelta);
+
+      hint.textContent = `${roundName(selFrom)} → ${roundName(selTo)}｜可对比人数：${compareRows.length}`;
+
+      if (!compareRows.length) {
+        tableWrap.innerHTML = '<div class="empty">两轮之间无可比较的完整成绩学生。</div>';
+        return;
+      }
+
+      tableWrap.innerHTML = `<table><thead><tr><th>考号</th><th>姓名</th><th>起始排名</th><th>对比排名</th><th>排名变动</th><th>起始总分</th><th>对比总分</th><th>分数变化</th></tr></thead><tbody>` +
+        compareRows.map(r => {
+          const dt = r.rankDelta > 0 ? `<span class="tag good">+${r.rankDelta}</span>` : r.rankDelta < 0 ? `<span class="tag warn">${r.rankDelta}</span>` : '<span class="tag">0</span>';
+          const st = r.scoreDelta > 0 ? `<span style="color:#16a34a">+${r.scoreDelta}</span>` : r.scoreDelta < 0 ? `<span style="color:#dc2626">${r.scoreDelta}</span>` : '0';
+          return `<tr><td>${r.examNo}</td><td>${r.name}</td><td>${r.fromRank}</td><td>${r.toRank}</td><td>${dt}</td><td>${r.fromTotal}</td><td>${r.toTotal}</td><td>${st}</td></tr>`;
+        }).join('') + '</tbody></table>';
+    }
+
+    // === Export ===
+    function exportSummary() {
+      const cache = renderSummaryPanel._cache;
+      if (!cache) return;
+      const { selRound, allRows, availCore, availElective, totalMax } = cache;
+
+      const header = ['排名', '考号', '姓名'];
+      for (const s of availCore) header.push(SUB[s].label);
+      if (availElective.length > 0) { header.push('选考科目'); header.push('选考分数'); }
+      header.push(`总分/${totalMax}`);
+
+      const dataRows = allRows.map(r => {
+        const row = [r.rank ?? '', r.examNo, r.name || ''];
+        for (const s of availCore) row.push(r.subScores?.[s] ?? '');
+        if (availElective.length > 0) {
+          row.push(r.elKey ? SUB[r.elKey].label : '');
+          row.push(r.elKey ? (r.subScores?.[r.elKey] ?? '') : '');
+        }
+        row.push(r.total ?? r.partialTotal ?? '');
+        return row;
+      });
+
+      const ws = XLSX.utils.aoa_to_sheet([header, ...dataRows]);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, '排名');
+      XLSX.writeFile(wb, `高33班_${roundName(selRound)}_成绩排名.xlsx`);
+    }
+
+    // === Tab Switch (lazy render) ===
+    function switchTab(tab) {
+      activeTab = tab;
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+      document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === `panel-${tab}`));
+      renderActivePanel();
+    }
+
+    function renderActivePanel() {
+      switch (activeTab) {
+        case 'data': renderDataPanel(); break;
+        case 'summary': renderSummaryPanel(); break;
+        case 'subject': renderSubjectPanel(); break;
+        case 'student': renderStudentPanel(); break;
+        case 'progress': renderProgressPanel(); break;
+      }
+    }
+
+    // === Event Binding ===
+    function bindEvents() {
+      document.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+
+      $('uploadFile').addEventListener('change', handleFileSelect);
+
+      // Delegate: round list actions
+      $('roundList').addEventListener('click', e => {
+        const btn = e.target.closest('[data-round]');
+        if (!btn) return;
+        const round = btn.dataset.round;
+        if (btn.classList.contains('chip-delete')) {
+          if (!confirm(`确认删除轮次"${roundName(round)}"在所有学科中的数据？`)) return;
+          for (const sub of ALL_SUBJECTS) { if (app.scores[sub]) delete app.scores[sub][round]; }
+          delete app.roundNames[round];
+          save(); renderMeta(); renderDataPanel();
+          showMsg('dataMessage', 'success', `已删除轮次"${roundName(round)}"`);
+        } else if (btn.classList.contains('chip-rename')) {
+          const newName = prompt(`重命名轮次"${roundName(round)}"为：`, roundName(round));
+          if (!newName || newName.trim() === '' || newName.trim() === round) return;
+          const trimmed = newName.trim();
+          // Rename in all scores
+          for (const sub of ALL_SUBJECTS) {
+            if (app.scores[sub]?.[round]) {
+              app.scores[sub][trimmed] = app.scores[sub][round];
+              delete app.scores[sub][round];
+            }
+          }
+          delete app.roundNames[round];
+          app.roundNames[trimmed] = trimmed;
+          save(); renderMeta(); renderDataPanel();
+        }
+      });
+
+      // Delegate: delete subject
+      $('subjectOverviewWrap').addEventListener('click', e => {
+        const btn = e.target.closest('[data-delete-subject]');
+        if (!btn) return;
+        const sub = btn.dataset.deleteSubject;
+        if (!confirm(`确认删除"${SUB[sub].label}"全部成绩？`)) return;
+        app.scores[sub] = {};
+        app.meta[sub] = { fileCount: 0, lastUploadAt: null };
+        save(); renderMeta(); renderDataPanel();
+        showMsg('dataMessage', 'success', `已删除${SUB[sub].label}全部成绩`);
+      });
+
+      $('clearDataBtn').addEventListener('click', () => {
+        if (!confirm('确认清空全部本地数据？不可恢复。')) return;
+        app = createEmpty(); save(); renderMeta(); renderDataPanel();
+        showMsg('dataMessage', 'success', '已清空全部数据。');
+      });
+
+      $('exportSummaryBtn').addEventListener('click', exportSummary);
+      $('publishBtn').addEventListener('click', exportPublishData);
+
+      $('downloadBackupBtn').addEventListener('click', () => {
+        const blob = new Blob([JSON.stringify(app, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = '高33班_数据备份.json'; a.click();
+        URL.revokeObjectURL(url);
+      });
+
+      $('restoreBackupBtn').addEventListener('click', () => $('backupInput').click());
+      $('backupInput').addEventListener('change', async e => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        try {
+          const text = await file.text();
+          const parsed = JSON.parse(text);
+          if (!parsed || typeof parsed !== 'object') throw new Error('格式无效');
+          if (parsed.version !== 2) {
+            // Try to accept v1 format
+            if (parsed.version === 1) {
+              app = { ...createEmpty(), ...parsed, version: 2 };
+            } else {
+              throw new Error('版本不兼容');
+            }
+          } else {
+            app = parsed;
+          }
+          save(); renderMeta(); renderActivePanel();
+          showMsg('dataMessage', 'success', '备份导入成功！');
+        } catch (err) {
+          showMsg('dataMessage', 'error', '导入失败：' + err.message);
+        }
+        e.target.value = '';
+      });
+
+      // Summary panel controls
+      $('summaryRound').addEventListener('change', renderSummaryPanel);
+
+      // Subject panel controls
+      $('analysisSubject').addEventListener('change', renderSubjectPanel);
+      $('analysisRound').addEventListener('change', renderSubjectPanel);
+
+      // Student panel controls
+      $('profileStudent').addEventListener('change', renderStudentPanel);
+      $('profileRound').addEventListener('change', renderStudentPanel);
+
+      // Progress panel controls
+      $('progressFrom').addEventListener('change', renderProgressPanel);
+      $('progressTo').addEventListener('change', renderProgressPanel);
+    }
+
+    // === Publish: export data.json for GitHub Pages ===
+    function exportPublishData() {
+      const blob = new Blob([JSON.stringify(app, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = 'data.json'; a.click();
+      URL.revokeObjectURL(url);
+      showMsg('dataMessage', 'success', '已导出 data.json，请将此文件放入 GitHub 仓库根目录并 push，其他人即可通过网址查看成绩。');
+    }
+
+    // === Init: try loading published data.json (for GitHub Pages viewers) ===
+    let isReadOnly = false;
+
+    async function init() {
+      // Try to load data.json from the same directory (works on GitHub Pages)
+      try {
+        const resp = await fetch('data.json?t=' + Date.now());
+        if (resp.ok) {
+          const published = await resp.json();
+          if (published && published.version === 2 && Object.keys(published.scores || {}).length > 0) {
+            // Has published data - use it, and check if localStorage also has data
+            const local = loadState();
+            const localHasData = Object.values(local.scores || {}).some(s => Object.keys(s).length > 0);
+            if (localHasData) {
+              // Local data exists (teacher's machine) - use local, ignore published
+              app = local;
+            } else {
+              // No local data (viewer's machine) - use published, read-only
+              app = published;
+              isReadOnly = true;
+            }
+          }
+        }
+      } catch { /* file:// or no data.json, use localStorage as normal */ }
+
+      if (isReadOnly) {
+        // Hide upload/edit controls, show read-only notice
+        document.querySelectorAll('#panel-data .btn, #uploadFile, #uploadSubject').forEach(el => el.disabled = true);
+        $('dataMessage').className = 'message info';
+        $('dataMessage').textContent = '当前为在线查看模式（只读）。数据由班主任发布，如需更新请联系班主任。';
+      }
+
+      bindEvents();
+      renderMeta();
+      renderActivePanel();
+    }
+
+    init();
+  })();
+  </script>
+</body>
+</html>

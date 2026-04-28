@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>课后服务费用公示系统</title>
+    
+    <!-- 引入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- 引入 React 和 ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    
+    <!-- 引入 Babel -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- 引入 html2canvas 用于生成图片 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+    <style>
+        .fade-in { animation: fadeIn 0.2s ease-in-out; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.98); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        /* 自定义滚动条样式，使其更宽更易拖动 */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f5f9; 
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1; 
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8; 
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900 font-sans antialiased">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo, useRef } = React;
+
+        // --- 图标组件 ---
+        const IconUpload = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>;
+        const IconFileText = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/><line x1="10" x2="8" y1="9" y2="9"/></svg>;
+        const IconX = () => <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>;
+        const IconSearch = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>;
+        const IconInfo = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="16" y2="12"/><line x1="12" x2="12.01" y1="8" y2="8"/></svg>;
+        const IconCalendar = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>;
+        const IconEdit = () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>;
+        const IconCheck = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>;
+        const IconCancelSmall = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>;
+        const IconAlert = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>;
+        const IconDownload = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>;
+
+        const Badge = ({ children }) => (
+            <span className="px-3 py-1 rounded-full text-sm font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                {children}
+            </span>
+        );
+
+        function App() {
+            const RATE_PER_DAY = 60;
+            const [students, setStudents] = useState([]);
+            const [searchTerm, setSearchTerm] = useState("");
+            const [selectedStudent, setSelectedStudent] = useState(null);
+            const [loading, setLoading] = useState(false);
+            const [errorMsg, setErrorMsg] = useState("");
+            const [generatingImg, setGeneratingImg] = useState(false);
+            
+            // --- 班级名称状态管理 ---
+            const [className, setClassName] = useState(() => {
+                return localStorage.getItem("className") || "高33班";
+            });
+            const [isEditingTitle, setIsEditingTitle] = useState(false);
+            const [tempClassName, setTempClassName] = useState("");
+            const inputRef = useRef(null);
+
+            useEffect(() => {
+                document.title = `${className}课后服务费用公示系统`;
+            }, [className]);
+
+            // 初始化演示数据
+            useEffect(() => {
+                const demoData = [
+                    { name: "李欣", dates: ["10.5","10.6","10.7","10.8","10.12","10.18","10.19","10.25","10.26","11.8","11.9","11.15","11.16","11.22","11.23","11.29","11.30","12.6","12.7","12.13","12.14","12.20","12.21","12.27","12.28","1.3","1.10","1.11","1.17","1.18","1.25","1.26","2.7","2.8","2.9","2.10","2.11","2.12","2.13"] },
+                    { name: "伍梦冉", dates: ["10.6","10.7","10.8","10.12","10.18","10.19","10.25","10.26","11.8","11.9","11.15","11.16","11.22","11.23","11.29","11.30","12.6","12.7","12.13","12.14","12.20","12.21","12.27","12.28","1.10","1.11","1.17","1.18","1.25","1.26","2.7","2.8","2.9","2.10","2.11","2.12","2.13"] },
+                    { name: "刘宇阳", dates: ["10.5","10.6","10.7","10.8","10.12","10.18","10.19","10.25","10.26","11.8","11.9","11.15","11.16","11.22","11.23","11.29","11.30","12.6","12.7","12.13","12.14","12.20","12.21","12.27","12.28","1.3","1.10","1.11","1.17","1.18","1.25","1.26","2.7","2.8","2.9","2.10","2.11","2.12","2.13"] },
+                    { name: "廖诗琴", dates: ["10.5","10.6","10.7","10.8","10.12","10.18","10.19","10.25","10.26","11.8","11.9","11.15","11.16","11.22","11.23","11.29","11.30","12.6","12.7","12.13","12.14","12.20","12.21","12.27","12.28","1.3","1.10","1.11","1.17","1.18","1.25","1.26","2.7","2.8","2.9","2.10","2.11","2.12","2.13"] },
+                    { name: "欧阳亚婷", dates: ["10.5","10.6","10.7","10.8","10.12","10.18","10.19","10.25","10.26","11.8","11.9","11.15","11.16","11.22","11.23","11.29","11.30","12.6","12.7","12.13","12.14","12.20","12.21","12.27","12.28"] }
+                ];
+                setStudents(demoData);
+            }, []);
+
+            // 读取文件文本，支持自动重试 GBK 编码
+            const readFileText = (file) => {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        const text = e.target.result;
+                        if (!text.includes("学生姓名")) {
+                            const readerGBK = new FileReader();
+                            readerGBK.onload = (e2) => resolve(e2.target.result);
+                            readerGBK.onerror = (err) => reject(err);
+                            readerGBK.readAsText(file, 'GBK');
+                        } else {
+                            resolve(text);
+                        }
+                    };
+                    reader.onerror = (err) => reject(err);
+                    reader.readAsText(file, 'UTF-8');
+                });
+            };
+
+            // CSV 解析
+            const parseCSV = (text) => {
+                try {
+                    if (!text) return [];
+                    const lines = text.split(/\r\n|\n/);
+                    let headerIndex = -1;
+                    let headers = [];
+                    const data = [];
+
+                    for (let i = 0; i < lines.length; i++) {
+                        if (lines[i] && lines[i].includes("学生姓名")) {
+                            headerIndex = i;
+                            const cleanLine = lines[i].replace(/^\uFEFF/, '');
+                            headers = cleanLine.split(",").map(h => h ? h.trim() : "");
+                            break;
+                        }
+                    }
+                    if (headerIndex === -1) return [];
+
+                    for (let i = headerIndex + 1; i < lines.length; i++) {
+                        const line = lines[i];
+                        if (!line || !line.trim()) continue;
+                        const row = line.split(",");
+                        if (row.length < 2) continue;
+
+                        const nameIndex = headers.indexOf("学生姓名");
+                        const name = row[nameIndex] ? row[nameIndex].trim() : null;
+                        if (!name) continue;
+
+                        const studentDates = [];
+                        row.forEach((cell, index) => {
+                            if (index !== nameIndex && headers[index] && /\d/.test(headers[index])) {
+                                if (cell && cell.trim() === "1") studentDates.push(headers[index]);
+                            }
+                        });
+
+                        if (studentDates.length > 0) data.push({ name, dates: studentDates });
+                    }
+                    return data;
+                } catch (err) {
+                    console.error("解析单行CSV出错:", err);
+                    return [];
+                }
+            };
+
+            const handleFileUpload = async (event) => {
+                setLoading(true);
+                setErrorMsg("");
+                try {
+                    const files = Array.from(event.target.files);
+                    if (files.length === 0) { setLoading(false); return; }
+
+                    const allParsedData = [];
+                    let hasSuccess = false;
+
+                    for (const file of files) {
+                        try {
+                            const text = await readFileText(file);
+                            const parsed = parseCSV(text);
+                            if (parsed.length > 0) {
+                                allParsedData.push(...parsed);
+                                hasSuccess = true;
+                            }
+                        } catch (fileErr) {
+                            console.error(`读取文件 ${file.name} 失败`, fileErr);
+                        }
+                    }
+
+                    if (!hasSuccess && files.length > 0) {
+                        setErrorMsg("未从文件中解析出有效数据。请确认：1.文件是 CSV 格式；2.表头包含“学生姓名”");
+                        setLoading(false);
+                        return;
+                    }
+
+                    const mergedMap = new Map();
+                    allParsedData.forEach(item => {
+                        if (mergedMap.has(item.name)) {
+                            const existing = mergedMap.get(item.name);
+                            const newDates = Array.from(new Set([...existing.dates, ...item.dates]));
+                            newDates.sort((a, b) => {
+                                try {
+                                    const [ma, da] = a.split('.').map(Number);
+                                    const [mb, db] = b.split('.').map(Number);
+                                    const weightA = ma >= 9 ? ma : ma + 12; 
+                                    const weightB = mb >= 9 ? mb : mb + 12;
+                                    if (weightA !== weightB) return weightA - weightB;
+                                    return da - db;
+                                } catch (e) { return 0; }
+                            });
+                            mergedMap.set(item.name, { name: item.name, dates: newDates });
+                        } else {
+                            mergedMap.set(item.name, item);
+                        }
+                    });
+                    
+                    const mergedData = Array.from(mergedMap.values());
+                    if (mergedData.length > 0) {
+                        setStudents(mergedData);
+                        setErrorMsg(""); 
+                    } else {
+                        setErrorMsg("解析出的数据为空，请检查文件内容格式。");
+                    }
+                } catch (error) {
+                    setErrorMsg("处理文件时发生未知错误，请刷新页面重试。");
+                } finally {
+                    setLoading(false);
+                    event.target.value = null;
+                }
+            };
+
+            const filteredStudents = useMemo(() => {
+                return students.filter(s => s && s.name && s.name.includes(searchTerm));
+            }, [students, searchTerm]);
+
+            const groupDatesByMonth = (dates) => {
+                if (!dates || !Array.isArray(dates)) return [];
+                const groups = {};
+                dates.forEach(date => {
+                    if (!date) return;
+                    const parts = date.split('.');
+                    if (parts.length > 0) {
+                        const month = parts[0];
+                        if (!groups[month]) groups[month] = [];
+                        groups[month].push(date);
+                    }
+                });
+                const sortedKeys = Object.keys(groups).sort((a, b) => {
+                    const ma = parseInt(a);
+                    const mb = parseInt(b);
+                    if (isNaN(ma) || isNaN(mb)) return 0;
+                    const wa = ma >= 9 ? ma : ma + 12;
+                    const wb = mb >= 9 ? mb : mb + 12;
+                    return wa - wb;
+                });
+                return sortedKeys.map(key => ({ month: key, dates: groups[key] }));
+            };
+
+            // --- 班级名称编辑逻辑 ---
+            const startEditingTitle = () => {
+                setTempClassName(className);
+                setIsEditingTitle(true);
+                setTimeout(() => { if (inputRef.current) inputRef.current.focus(); }, 0);
+            };
+            const saveTitle = () => {
+                if (tempClassName.trim()) {
+                    setClassName(tempClassName);
+                    localStorage.setItem("className", tempClassName);
+                }
+                setIsEditingTitle(false);
+            };
+            const cancelEditingTitle = () => setIsEditingTitle(false);
+            const handleTitleKeyDown = (e) => {
+                if (e.key === 'Enter') saveTitle();
+                if (e.key === 'Escape') cancelEditingTitle();
+            };
+
+            // --- 导出图片逻辑 ---
+            const handleExportImage = async () => {
+                if (!selectedStudent) return;
+                setGeneratingImg(true);
+
+                // 稍微延迟让DOM渲染完成（如果刚打开还没完全渲染）
+                await new Promise(resolve => setTimeout(resolve, 300));
+
+                const element = document.getElementById("export-report-container");
+                if (element) {
+                    try {
+                        const canvas = await html2canvas(element, {
+                            scale: 2, // 提高清晰度
+                            useCORS: true,
+                            backgroundColor: "#ffffff", // 确保背景白
+                            logging: false
+                        });
+                        
+                        // 创建下载链接
+                        const link = document.createElement('a');
+                        link.download = `${selectedStudent.name}_费用核算单.png`;
+                        link.href = canvas.toDataURL("image/png");
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                    } catch (error) {
+                        console.error("生成图片失败:", error);
+                        alert("生成图片失败，请重试");
+                    }
+                }
+                setGeneratingImg(false);
+            };
+
+            return (
+                <div className="min-h-screen bg-slate-50 font-sans text-slate-900 pb-12">
+                    {/* 头部 */}
+                    <div className="bg-white border-b border-slate-200 sticky top-0 z-10 shadow-sm">
+                        <div className="max-w-6xl mx-auto px-4 py-4">
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                <div>
+                                    {isEditingTitle ? (
+                                        <div className="flex items-center gap-2 h-9">
+                                            <input 
+                                                ref={inputRef}
+                                                type="text" 
+                                                value={tempClassName}
+                                                onChange={(e) => setTempClassName(e.target.value)}
+                                                onKeyDown={handleTitleKeyDown}
+                                                className="text-2xl font-bold text-slate-800 border-b-2 border-blue-500 focus:outline-none bg-transparent w-48 px-1"
+                                                placeholder="输入班级名称"
+                                            />
+                                            <button onClick={saveTitle} className="text-emerald-600 hover:bg-emerald-50 p-1.5 rounded-full transition-colors" title="保存">
+                                                <IconCheck />
+                                            </button>
+                                            <button onClick={cancelEditingTitle} className="text-red-500 hover:bg-red-50 p-1.5 rounded-full transition-colors" title="取消">
+                                                <IconCancelSmall />
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <h1 
+                                            className="text-2xl font-bold text-slate-800 flex items-center gap-2 group cursor-pointer select-none" 
+                                            onClick={startEditingTitle}
+                                            title="点击修改班级名称"
+                                        >
+                                            <span className="text-blue-600"><IconFileText /></span>
+                                            {className}课后服务费用公示
+                                            <span className="text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity hover:text-blue-500">
+                                                <IconEdit />
+                                            </span>
+                                        </h1>
+                                    )}
+                                    <p className="text-slate-500 text-sm mt-1">10月 - 2月 费用明细核算</p>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <label className="cursor-pointer bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 shadow-sm active:transform active:scale-95 select-none">
+                                        <IconUpload /> 导入CSV文件
+                                        <input type="file" multiple accept=".csv, .txt" onChange={handleFileUpload} className="hidden" />
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <main className="max-w-6xl mx-auto px-4 py-8 space-y-6">
+                        {/* 错误提示条 */}
+                        {errorMsg && (
+                            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-start gap-2 animate-pulse">
+                                <span className="mt-0.5"><IconAlert /></span>
+                                <div>
+                                    <p className="font-bold">数据解析提示</p>
+                                    <p className="text-sm">{errorMsg}</p>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* 规则说明 */}
+                        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
+                            <span className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5"><IconInfo /></span>
+                            <div className="text-sm text-amber-900">
+                                <p className="font-bold text-lg mb-1">计费规则：</p>
+                                <ul className="list-decimal list-inside space-y-1 text-base">
+                                    <li>费用标准为 <strong>60元/天</strong>。</li>
+                                    <li>表格内标注为 <strong>"1"</strong> 代表该天已上课。</li>
+                                    <li>请各位同学核对自己周末是否请假，错峰来找我修改。</li>
+                                    <li><span className="font-bold text-red-600">截止时间：2026年2月5日。</span></li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        {/* 搜索框 */}
+                        <div className="relative">
+                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-6 h-6"><IconSearch /></span>
+                            <input 
+                                type="text" 
+                                placeholder="输入学生姓名查找..." 
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="w-full pl-12 pr-4 py-4 text-lg rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-sm"
+                            />
+                        </div>
+
+                        {/* 学生列表 */}
+                        {loading ? (
+                            <div className="text-center py-12 text-slate-500 text-lg">正在处理数据...</div>
+                        ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                {filteredStudents.map((student, idx) => {
+                                    const totalCost = student.dates.length * RATE_PER_DAY;
+                                    return (
+                                        <div 
+                                            key={idx}
+                                            onClick={() => setSelectedStudent(student)}
+                                            className="group bg-white rounded-xl border border-slate-200 p-6 hover:shadow-lg hover:border-blue-400 cursor-pointer transition-all duration-200 relative overflow-hidden select-none"
+                                        >
+                                            <div className="flex justify-between items-start mb-4">
+                                                <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-700 font-bold text-xl border border-slate-200">
+                                                    {student.name.charAt(0)}
+                                                </div>
+                                                <Badge>{student.dates.length} 天</Badge>
+                                            </div>
+                                            <h3 className="text-xl font-bold text-slate-800 mb-2">{student.name}</h3>
+                                            <div className="flex items-baseline gap-2 text-slate-600">
+                                                应缴: <span className="text-2xl font-bold text-emerald-600">¥{totalCost}</span>
+                                            </div>
+                                            <div className="mt-4 pt-3 border-t border-slate-100 text-sm text-center text-blue-600 font-bold">
+                                                点击查看明细 &rarr;
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </main>
+
+                    {/* --- 全屏详情弹窗 --- */}
+                    {selectedStudent && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-6 bg-slate-900/60 backdrop-blur-sm fade-in">
+                            <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-5xl max-h-[95vh] flex flex-col overflow-hidden relative">
+                                
+                                {/* 弹窗顶部 Header */}
+                                <div className="p-6 sm:p-8 border-b border-slate-100 bg-slate-50/80 flex justify-between items-center">
+                                    <div className="flex-1">
+                                        <div className="flex items-center gap-3 mb-2">
+                                            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xl sm:text-2xl shadow-md">
+                                                {selectedStudent.name.charAt(0)}
+                                            </div>
+                                            <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">{selectedStudent.name}</h2>
+                                        </div>
+                                        <p className="text-slate-500 text-base sm:text-lg pl-1">费用明细详情单</p>
+                                    </div>
+                                    
+                                    <div className="flex items-center gap-3">
+                                        <button 
+                                            onClick={handleExportImage}
+                                            disabled={generatingImg}
+                                            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors shadow-sm disabled:opacity-50"
+                                        >
+                                            {generatingImg ? "生成中..." : (
+                                                <>
+                                                    <IconDownload /> 下载报告
+                                                </>
+                                            )}
+                                        </button>
+                                        <button 
+                                            onClick={() => setSelectedStudent(null)}
+                                            className="p-3 bg-slate-100 hover:bg-red-50 hover:text-red-600 rounded-full transition-colors text-slate-400"
+                                            aria-label="关闭"
+                                        >
+                                            <IconX />
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* 弹窗主体内容：滚动区域 */}
+                                <div className="flex-1 overflow-y-auto p-6 sm:p-8 custom-scrollbar">
+                                    <div className="grid grid-cols-2 gap-6 mb-8">
+                                        <div className="bg-blue-50 p-5 rounded-2xl border border-blue-100 flex flex-col items-center justify-center">
+                                            <p className="text-base sm:text-lg text-blue-600 font-bold uppercase tracking-wider mb-1">上课天数</p>
+                                            <p className="text-4xl sm:text-5xl font-extrabold text-blue-700">{selectedStudent.dates.length} <span className="text-xl sm:text-2xl font-medium text-blue-400">天</span></p>
+                                        </div>
+                                        <div className="bg-emerald-50 p-5 rounded-2xl border border-emerald-100 flex flex-col items-center justify-center">
+                                            <p className="text-base sm:text-lg text-emerald-600 font-bold uppercase tracking-wider mb-1">合计费用</p>
+                                            <p className="text-4xl sm:text-5xl font-extrabold text-emerald-700"><span className="text-2xl sm:text-3xl font-bold align-top mr-1">¥</span>{selectedStudent.dates.length * RATE_PER_DAY}</p>
+                                        </div>
+                                    </div>
+
+                                    <h3 className="text-xl sm:text-2xl font-bold text-slate-800 mb-4 flex items-center gap-2 border-l-4 border-blue-500 pl-3">
+                                        <span className="text-slate-400"><IconCalendar /></span>
+                                        上课日期记录明细
+                                    </h3>
+                                    
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                                        {groupDatesByMonth(selectedStudent.dates).map((group) => (
+                                            <div key={group.month} className="border-2 border-slate-100 rounded-xl p-4 bg-white shadow-sm hover:border-blue-200 transition-colors h-full flex flex-col">
+                                                <div className="flex justify-between items-center mb-3 pb-2 border-b border-slate-100">
+                                                    <span className="text-2xl font-extrabold text-slate-700">{group.month}月</span>
+                                                    <span className="bg-slate-100 text-slate-600 px-2 py-1 rounded-md text-sm font-bold">
+                                                        {group.dates.length}天
+                                                    </span>
+                                                </div>
+                                                <div className="flex flex-wrap gap-2 content-start">
+                                                    {group.dates.map((date, i) => (
+                                                        <span key={i} className="px-3 py-1.5 bg-slate-50 border border-slate-200 text-slate-700 text-base sm:text-lg font-bold rounded-lg font-mono">
+                                                            {date}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                                
+                                <div className="p-4 sm:p-6 border-t border-slate-100 bg-white">
+                                    <button 
+                                        onClick={() => setSelectedStudent(null)}
+                                        className="w-full bg-slate-900 hover:bg-slate-800 text-white text-lg sm:text-xl font-bold py-4 rounded-xl transition-all shadow-lg hover:shadow-xl active:scale-[0.99]"
+                                    >
+                                        关 闭
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* --- 隐藏的导出专用视图 (绝对定位在视口外) --- */}
+                    {selectedStudent && (
+                        <div id="export-report-container" style={{ position: 'fixed', top: 0, left: '-9999px', width: '800px', background: '#fff', zIndex: -10 }} className="p-8">
+                            {/* 导出报告 Header */}
+                            <div className="text-center border-b-2 border-slate-800 pb-6 mb-6">
+                                <h1 className="text-3xl font-extrabold text-slate-900 mb-2">{className}课后服务费用核算单</h1>
+                                <p className="text-slate-500">统计周期：10月 - 2月</p>
+                            </div>
+                            
+                            {/* 个人信息栏 */}
+                            <div className="flex justify-between items-center mb-8 bg-slate-50 p-6 rounded-xl border border-slate-200">
+                                <div>
+                                    <span className="text-slate-500 text-lg font-medium mr-2">学生姓名:</span>
+                                    <span className="text-4xl font-extrabold text-slate-900">{selectedStudent.name}</span>
+                                </div>
+                                <div className="text-right">
+                                    <div className="text-sm text-slate-500 mb-1">生成时间</div>
+                                    <div className="font-mono font-bold text-slate-700">{new Date().toLocaleString()}</div>
+                                </div>
+                            </div>
+
+                            {/* 大数字统计 */}
+                            <div className="flex gap-6 mb-8">
+                                <div className="flex-1 bg-blue-50 p-6 rounded-xl border border-blue-200 text-center">
+                                    <p className="text-blue-800 font-bold mb-2">上课总天数</p>
+                                    <p className="text-5xl font-extrabold text-blue-700">{selectedStudent.dates.length} <span className="text-2xl">天</span></p>
+                                </div>
+                                <div className="flex-1 bg-emerald-50 p-6 rounded-xl border border-emerald-200 text-center">
+                                    <p className="text-emerald-800 font-bold mb-2">应缴总费用</p>
+                                    <p className="text-5xl font-extrabold text-emerald-700">¥ {selectedStudent.dates.length * RATE_PER_DAY}</p>
+                                </div>
+                            </div>
+
+                            {/* 详细列表 (强制平铺不滚动) */}
+                            <div className="mb-8">
+                                <h3 className="text-xl font-bold text-slate-800 mb-4 border-l-4 border-slate-800 pl-3">详细记录</h3>
+                                <div className="grid grid-cols-3 gap-4">
+                                    {groupDatesByMonth(selectedStudent.dates).map((group) => (
+                                        <div key={group.month} className="border border-slate-200 rounded-lg p-4 bg-white break-inside-avoid">
+                                            <div className="flex justify-between items-center mb-3 pb-2 border-b border-slate-100">
+                                                <span className="text-xl font-bold text-slate-800">{group.month}月</span>
+                                                <span className="text-sm bg-slate-100 px-2 py-0.5 rounded font-bold">{group.dates.length}天</span>
+                                            </div>
+                                            <div className="flex flex-wrap gap-2">
+                                                {group.dates.map((date, i) => (
+                                                    <span key={i} className="px-2 py-1 bg-slate-50 border border-slate-200 text-slate-700 font-bold rounded text-sm font-mono">
+                                                        {date}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* 底部说明 */}
+                            <div className="border-t-2 border-slate-200 pt-4 text-sm text-slate-500">
+                                <p><strong>备注：</strong></p>
+                                <ul className="list-disc list-inside mt-1 space-y-1">
+                                    <li>计费标准：{RATE_PER_DAY}元/天。</li>
+                                    <li>请核对上述日期，如有疑问请在 2026年2月5日 前联系修改。</li>
+                                    <li>本单据由系统自动生成。</li>
+                                </ul>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
