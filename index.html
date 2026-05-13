@@ -140,6 +140,27 @@
     thead th { position: sticky; top: 0; z-index: 2; background: #f4fbf7; color: #2e5c4b; font-weight: 700; }
     tbody tr:nth-child(2n) { background: #fbfefc; }
 
+    /* Summary table: freeze header + first two columns (rank/name) */
+    .summary-table { min-width: 980px; }
+    .summary-table th, .summary-table td { background-clip: padding-box; }
+    .summary-table .sticky-col { position: sticky; left: 0; z-index: 3; }
+    .summary-table .sticky-col.rank { left: 0; width: 64px; min-width: 64px; background: #fff; }
+    .summary-table .sticky-col.name { left: 64px; width: 120px; min-width: 120px; text-align: left; background: #fff; box-shadow: 6px 0 10px rgba(20, 49, 41, 0.04); }
+    .summary-table thead th.sticky-col { z-index: 4; background: #f4fbf7; }
+    .summary-table tbody tr:nth-child(2n) td.sticky-col.rank,
+    .summary-table tbody tr:nth-child(2n) td.sticky-col.name { background: #fbfefc; }
+
+    /* Subject highlight in summary table */
+    .cell-top10 { background: #eaf8f0 !important; color: #1e5a40; }
+    .cell-bottom10 { background: #fdeeee !important; color: #8f3131; }
+
+    /* Summary stats table: freeze the subject column */
+    .summary-stat-table th:first-child,
+    .summary-stat-table td:first-child { position: sticky; left: 0; background-clip: padding-box; }
+    .summary-stat-table thead th:first-child { z-index: 4; background: #f4fbf7; }
+    .summary-stat-table tbody td:first-child { z-index: 3; background: #fff; text-align: left; font-weight: 700; }
+    .summary-stat-table tbody tr:nth-child(2n) td:first-child { background: #fbfefc; }
+
     .tag { display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; padding: 0.17rem 0.55rem; font-size: 0.76rem; border: 1px solid #d4e5db; color: #355f50; background: #f7fcf9; }
     .tag.warn { border-color: #f0d3b3; background: #fff6ea; color: #8d5a23; }
     .tag.good { border-color: #c2e2cf; background: #eaf8f0; color: #206145; }
@@ -179,13 +200,12 @@
   </style>
 </head>
 <body>
-  <header class="hero">
-    <h1>高33班成绩分析系统</h1>
-    <p>单文件离线版 · 按学科上传 Excel · 本地保存（不联网）</p>
-    <div class="meta-row">
-      <div class="badge" id="metaStudentCount">学生数：0</div>
-      <div class="badge" id="metaRoundCount">考试轮次：0</div>
-      <div class="badge" id="metaSubjectCount">已录入学科：0</div>
+	  <header class="hero">
+	    <h1>高33班成绩分析系统</h1>
+	    <div class="meta-row">
+	      <div class="badge" id="metaStudentCount">学生数：0</div>
+	      <div class="badge" id="metaRoundCount">考试轮次：0</div>
+	      <div class="badge" id="metaSubjectCount">已录入学科：0</div>
       <div class="badge" id="metaLastUpdate">最后更新：尚无</div>
     </div>
   </header>
@@ -255,7 +275,7 @@
         <label>选择考试轮次
           <select id="summaryRound"></select>
         </label>
-        <button class="btn primary" id="exportSummaryBtn">导出本轮排名 Excel</button>
+	        <button class="btn primary" id="exportSummaryBtn">导出本轮成绩总表 Excel</button>
       </div>
       <div id="summaryHint" class="mini-note"></div>
       <div id="summaryStats" class="stats-grid"></div>
@@ -394,17 +414,85 @@
       return { version: 2, students: {}, scores: {}, roundNames: {}, meta: {}, updatedAt: null };
     }
 
+    function studentKeyPriority(key) {
+      let score = 0;
+      if (/^\d+$/.test(key)) score += 4;
+      if (!key.startsWith('n_')) score += 2;
+      if (!key.includes('_c')) score += 1;
+      return score;
+    }
+
+    function compareStudentKeys(a, b) {
+      const scoreDiff = studentKeyPriority(b) - studentKeyPriority(a);
+      if (scoreDiff) return scoreDiff;
+      const lenDiff = String(a).length - String(b).length;
+      if (lenDiff) return lenDiff;
+      return String(a).localeCompare(String(b), 'zh', { numeric: true });
+    }
+
+    function moveStudentScores(state, fromExamNo, toExamNo) {
+      if (!fromExamNo || !toExamNo || fromExamNo === toExamNo) return;
+      for (const subjectRounds of Object.values(state.scores || {})) {
+        if (!subjectRounds || typeof subjectRounds !== 'object') continue;
+        for (const roundScores of Object.values(subjectRounds)) {
+          if (!roundScores || typeof roundScores !== 'object') continue;
+          if (!Object.prototype.hasOwnProperty.call(roundScores, fromExamNo)) continue;
+          if (!Object.prototype.hasOwnProperty.call(roundScores, toExamNo) || roundScores[toExamNo] == null) {
+            roundScores[toExamNo] = roundScores[fromExamNo];
+          }
+          delete roundScores[fromExamNo];
+        }
+      }
+    }
+
+    function sanitizeState(state) {
+      const next = { ...createEmpty(), ...(state || {}) };
+      next.students = next.students && typeof next.students === 'object' ? next.students : {};
+      next.scores = next.scores && typeof next.scores === 'object' ? next.scores : {};
+      next.roundNames = next.roundNames && typeof next.roundNames === 'object' ? next.roundNames : {};
+      next.meta = next.meta && typeof next.meta === 'object' ? next.meta : {};
+
+      const students = {};
+      const nameGroups = new Map();
+      for (const [rawExamNo, rawStudent] of Object.entries(next.students)) {
+        const examNo = String(rawExamNo || '').trim();
+        if (!examNo) continue;
+        const student = rawStudent && typeof rawStudent === 'object' ? { ...rawStudent } : {};
+        const name = String(student.name || '').trim();
+        students[examNo] = { ...student, examNo, name };
+        const normalized = normName(name);
+        if (!normalized) continue;
+        if (!nameGroups.has(normalized)) nameGroups.set(normalized, []);
+        nameGroups.get(normalized).push(examNo);
+      }
+
+      next.students = students;
+
+      for (const examNos of nameGroups.values()) {
+        if (examNos.length < 2) continue;
+        const [canonical, ...duplicates] = [...examNos].sort(compareStudentKeys);
+        for (const duplicate of duplicates) {
+          if (!next.students[duplicate]) continue;
+          moveStudentScores(next, duplicate, canonical);
+          delete next.students[duplicate];
+        }
+      }
+
+      return next;
+    }
+
     function loadState() {
       try {
         const raw = localStorage.getItem(STORAGE_KEY);
         if (!raw) return createEmpty();
         const s = JSON.parse(raw);
         if (!s || s.version !== 2) return createEmpty();
-        return s;
+        return sanitizeState(s);
       } catch { return createEmpty(); }
     }
 
     function save() {
+      app = sanitizeState(app);
       app.updatedAt = new Date().toISOString();
       localStorage.setItem(STORAGE_KEY, JSON.stringify(app));
     }
@@ -429,10 +517,17 @@
       return app.roundNames[key] || key;
     }
 
-    function getScore(subKey, round, examNo) {
-      const v = app.scores?.[subKey]?.[round]?.[examNo];
-      return (v != null && isFinite(Number(v))) ? Number(v) : null;
-    }
+	    function getScore(subKey, round, examNo) {
+	      const v = app.scores?.[subKey]?.[round]?.[examNo];
+	      return (v != null && isFinite(Number(v))) ? Number(v) : null;
+	    }
+
+	    function normName(name) {
+	      // Normalize for stable matching across teachers:
+	      // - NFKC: fold fullwidth forms
+	      // - trim + remove all whitespace (including ideographic spaces)
+	      return String(name || '').normalize('NFKC').trim().replace(/\s+/g, '');
+	    }
 
     // Per-student elective detection
     function getStudentElective(round, examNo) {
@@ -645,13 +740,61 @@
       $('cancelImportBtn').addEventListener('click', cancelImport);
     }
 
-    function confirmImport() {
-      if (!pendingImport) return;
-      const { subjectKey, rounds, students } = pendingImport;
+	    function confirmImport() {
+	      if (!pendingImport) return;
+	      const { subjectKey, rounds, students } = pendingImport;
 
-      // Read final round names from dropdown + custom input
-      const selects = $('previewArea').querySelectorAll('.round-name-select');
-      selects.forEach(sel => {
+	      // Some teachers may fill the 考号 column with serial numbers (1..47).
+	      // To keep cross-subject joins stable, if the imported examNo doesn't exist yet,
+	      // we try to map by a unique student name.
+	      const nameToExamNo = {};
+	      for (const st of Object.values(app.students || {})) {
+	        const n = normName(st.name);
+	        if (!n) continue;
+	        if (!nameToExamNo[n]) nameToExamNo[n] = st.examNo;
+	      }
+
+	      function randHex(bytes = 4) {
+	        try {
+	          const arr = new Uint8Array(bytes);
+	          const c = globalThis.crypto;
+	          if (c && typeof c.getRandomValues === 'function') c.getRandomValues(arr);
+	          else throw new Error('crypto.getRandomValues unavailable');
+	          return [...arr].map(b => b.toString(16).padStart(2, '0')).join('');
+	        } catch {
+	          return Math.random().toString(16).slice(2, 10);
+	        }
+	      }
+
+	      function resolveExamNo(importExamNo, importName) {
+	        const n = normName(importName);
+	        if (n && nameToExamNo[n]) return nameToExamNo[n];
+
+	        // Name-first matching: if the normalized name uniquely identifies a student,
+	        // we ignore whatever was in the 考号/序号 column to avoid mis-assignment.
+	        let id = String(importExamNo ?? '').trim();
+	        if (/^\d+(\.\d+)?$/.test(id)) id = String(Math.trunc(Number(id)));
+
+	        if (id && app.students?.[id]) {
+	          const existingName = normName(app.students[id]?.name);
+	          // Same ID but different name -> likely "序号" collision. Avoid overwriting.
+	          if (n && existingName && existingName !== n) return `${id}_c${randHex(3)}`;
+	          if (n) nameToExamNo[n] = id;
+	          return id;
+	        }
+
+	        // New student: if we have a name, use a name-based synthetic ID for stability.
+	        if (n) {
+	          const base = `n_${n}`;
+	          if (!app.students?.[base]) return base;
+	          return `${base}_c${randHex(3)}`;
+	        }
+	        return id;
+	      }
+
+	      // Read final round names from dropdown + custom input
+	      const selects = $('previewArea').querySelectorAll('.round-name-select');
+	      selects.forEach(sel => {
         const idx = Number(sel.dataset.idx);
         if (sel.value === '__new__') {
           const customInput = $('previewArea').querySelector(`.round-name-custom[data-idx="${idx}"]`);
@@ -662,26 +805,33 @@
         }
       });
 
-      // Merge into app state
-      if (!app.scores[subjectKey]) app.scores[subjectKey] = {};
+	      // Merge into app state
+	      if (!app.scores[subjectKey]) app.scores[subjectKey] = {};
 
-      for (const st of students) {
-        // Register student
-        if (!app.students[st.examNo]) {
-          app.students[st.examNo] = { examNo: st.examNo, name: st.name };
-        } else if (st.name && !app.students[st.examNo].name) {
-          app.students[st.examNo].name = st.name;
-        }
+	      let mappedByName = 0;
+	      for (const st of students) {
+	        const resolvedExamNo = resolveExamNo(st.examNo, st.name);
+	        if (!resolvedExamNo) continue;
+	        if (String(resolvedExamNo) !== String(st.examNo).trim()) mappedByName++;
 
-        // Merge scores: use the NAME as the round key (not the column header)
-        for (const r of rounds) {
-          const score = st.scores[r.key];
-          if (score == null) continue;
-          const roundKey = r.name; // Use the display name as key
-          if (!app.scores[subjectKey][roundKey]) app.scores[subjectKey][roundKey] = {};
-          app.scores[subjectKey][roundKey][st.examNo] = score;
-        }
-      }
+	        // Register student
+	        if (!app.students[resolvedExamNo]) {
+	          app.students[resolvedExamNo] = { examNo: resolvedExamNo, name: st.name };
+	        } else if (st.name && !app.students[resolvedExamNo].name) {
+	          app.students[resolvedExamNo].name = st.name;
+	        }
+	        const normalizedName = normName(app.students[resolvedExamNo]?.name || st.name);
+	        if (normalizedName) nameToExamNo[normalizedName] = resolvedExamNo;
+
+	        // Merge scores: use the NAME as the round key (not the column header)
+	        for (const r of rounds) {
+	          const score = st.scores[r.key];
+	          if (score == null) continue;
+	          const roundKey = r.name; // Use the display name as key
+	          if (!app.scores[subjectKey][roundKey]) app.scores[subjectKey][roundKey] = {};
+	          app.scores[subjectKey][roundKey][resolvedExamNo] = score;
+	        }
+	      }
 
       // Save round names: map raw column key → display name
       // So next upload with same column headers auto-fills the names
@@ -697,11 +847,12 @@
       save();
       pendingImport = null;
       $('previewArea').style.display = 'none';
-      $('uploadFile').value = '';
-      renderDataPanel();
-      renderMeta();
-      showMsg('dataMessage', 'success', `导入成功：${SUB[subjectKey].label}，${students.length} 人，${rounds.length} 个轮次`);
-    }
+	      $('uploadFile').value = '';
+	      renderDataPanel();
+	      renderMeta();
+	      const mapHint = mappedByName ? `（按姓名对齐 ${mappedByName} 行）` : '';
+	      showMsg('dataMessage', 'success', `导入成功：${SUB[subjectKey].label}，${students.length} 人，${rounds.length} 个轮次${mapHint}`);
+	    }
 
     function cancelImport() {
       pendingImport = null;
@@ -817,9 +968,10 @@
     // === Render: Summary Panel ===
     function renderSummaryPanel() {
       const rounds = getRounds();
+      const preferRound = $('summaryRound').value || (rounds.length ? rounds[rounds.length - 1] : '');
       const selRound = fillSelect($('summaryRound'),
         rounds.map(r => ({ value: r, label: roundName(r) })),
-        $('summaryRound').value
+        preferRound
       );
 
       const hint = $('summaryHint');
@@ -893,12 +1045,19 @@
       const incomplete = rows.filter(r => !r.isComplete);
       const ranked = rankBy(complete, r => r.total);
 
-      // Subject rank maps
+      // Subject rank maps + top/bottom10 highlights
       const subjectRankMaps = {};
+      const subjectExtremes = {}; // {subKey: {top:Set, bottom:Set}}
       for (const sub of availableSubs) {
-        const withScore = students.map(s => ({ examNo: s.examNo, score: getScore(sub, selRound, s.examNo) })).filter(s => s.score != null);
+        const withScore = students
+          .map(s => ({ examNo: s.examNo, score: getScore(sub, selRound, s.examNo) }))
+          .filter(s => s.score != null);
         const r = rankBy(withScore, x => x.score);
         subjectRankMaps[sub] = Object.fromEntries(r.map(x => [x.examNo, x.rank]));
+        subjectExtremes[sub] = {
+          top: new Set(r.slice(0, 10).map(x => x.examNo)),
+          bottom: new Set(r.slice(Math.max(0, r.length - 10)).map(x => x.examNo)),
+        };
       }
 
       // Stats
@@ -923,23 +1082,29 @@
       const allRows = [...ranked.map(r => ({ ...r, status: null })), ...incomplete.map(r => ({ ...r, rank: null, status: `缺${r.missing.join('/')}` }))];
       const subHeaders = availCore.map(s => `<th>${SUB[s].label}</th>`).join('') + (availElective.length > 0 ? '<th>选考</th>' : '');
 
-      tableWrap.innerHTML = `<table><thead><tr><th>排名</th><th>考号</th><th>姓名</th>${subHeaders}<th>总分/${totalMax}</th></tr></thead><tbody>` +
+      tableWrap.innerHTML = `<table class="summary-table"><thead><tr><th class="sticky-col rank">排名</th><th class="sticky-col name">姓名</th>${subHeaders}<th>总分/${totalMax}</th></tr></thead><tbody>` +
         allRows.map(r => {
           const rankText = r.rank != null ? r.rank : '-';
           const cells = availCore.map(s => {
             const score = r.subScores[s];
             const sRank = subjectRankMaps[s]?.[r.examNo];
-            return `<td style="font-weight:700;font-size:0.95rem">${score != null ? score : '<span class="tag warn">缺</span>'}${sRank ? `<small style="color:var(--muted);font-weight:400;font-size:0.76rem"> (${sRank})</small>` : ''}</td>`;
+            const ex = subjectExtremes[s];
+            const hl = (score != null && ex?.top?.has(r.examNo)) ? 'cell-top10'
+              : (score != null && ex?.bottom?.has(r.examNo)) ? 'cell-bottom10' : '';
+            return `<td class="${hl}" style="font-weight:700;font-size:0.95rem">${score != null ? score : '<span class="tag warn">缺</span>'}${sRank ? `<small style="color:var(--muted);font-weight:400;font-size:0.76rem"> (${sRank})</small>` : ''}</td>`;
           }).join('');
           let elCell = '';
           if (availElective.length > 0) {
             const elLabel = r.elKey ? SUB[r.elKey].label : '-';
             const elScore = r.elKey ? (r.subScores[r.elKey] ?? '-') : '-';
             const elRank = r.elKey && subjectRankMaps[r.elKey]?.[r.examNo];
-            elCell = `<td style="font-weight:700;font-size:0.95rem">${elLabel} ${elScore}${elRank ? `<small style="color:var(--muted);font-weight:400;font-size:0.76rem"> (${elRank})</small>` : ''}</td>`;
+            const ex = r.elKey ? subjectExtremes[r.elKey] : null;
+            const hl = (r.elKey && r.subScores[r.elKey] != null && ex?.top?.has(r.examNo)) ? 'cell-top10'
+              : (r.elKey && r.subScores[r.elKey] != null && ex?.bottom?.has(r.examNo)) ? 'cell-bottom10' : '';
+            elCell = `<td class="${hl}" style="font-weight:700;font-size:0.95rem">${elLabel} ${elScore}${elRank ? `<small style="color:var(--muted);font-weight:400;font-size:0.76rem"> (${elRank})</small>` : ''}</td>`;
           }
           const totalText = r.total != null ? `<b>${r.total}</b>` : `<span style="color:var(--muted)">${r.partialTotal || '-'}</span>`;
-          return `<tr><td style="font-weight:700;font-size:0.95rem">${rankText}</td><td>${r.examNo}</td><td style="font-weight:700;font-size:0.95rem">${r.name || '-'}</td>${cells}${elCell}<td style="font-weight:700;font-size:0.95rem">${totalText}</td></tr>`;
+          return `<tr><td class="sticky-col rank" style="font-weight:700;font-size:0.95rem">${rankText}</td><td class="sticky-col name" style="font-weight:700;font-size:0.95rem">${r.name || '-'}</td>${cells}${elCell}<td style="font-weight:700;font-size:0.95rem">${totalText}</td></tr>`;
         }).join('') + '</tbody></table>';
 
       // Per-subject stats table
@@ -953,10 +1118,10 @@
         return `<tr style="font-weight:600"><td>合计</td><td>${totalMax}</td><td>${st.count}</td><td>${fmt(st.avg)}</td><td>${fmt(st.max, 0)}</td><td>${fmt(st.min, 0)}</td><td>${st.passRate != null ? fmt(st.passRate * 100) + '%' : '-'}</td></tr>`;
       })()].join('');
 
-      statTableWrap.innerHTML = `<table style="min-width:500px"><thead><tr><th>科目</th><th>满分</th><th>人数</th><th>均分</th><th>最高</th><th>最低</th><th>及格率</th></tr></thead><tbody>${statRowsHtml}</tbody></table>`;
+      statTableWrap.innerHTML = `<table class="summary-stat-table" style="min-width:500px"><thead><tr><th>科目</th><th>满分</th><th>人数</th><th>均分</th><th>最高</th><th>最低</th><th>及格率</th></tr></thead><tbody>${statRowsHtml}</tbody></table>`;
 
       // Store for export
-      renderSummaryPanel._cache = { selRound, ranked, allRows, availableSubs, availCore, availElective, subjectRankMaps, totalMax };
+      renderSummaryPanel._cache = { selRound, ranked, allRows, availableSubs, availCore, availElective, subjectRankMaps, subjectExtremes, totalMax };
     }
 
     // === Render: Subject Panel ===
@@ -1297,31 +1462,168 @@
     }
 
     // === Export ===
-    function exportSummary() {
-      const cache = renderSummaryPanel._cache;
-      if (!cache) return;
-      const { selRound, allRows, availCore, availElective, totalMax } = cache;
+	    function exportSummary() {
+	      const cache = renderSummaryPanel._cache;
+	      if (!cache) return;
+	      const { selRound } = cache;
+	      const students = getStudents();
+      const exportAt = new Date().toLocaleString('zh-CN', { hour12: false });
+      const safeRound = String(roundName(selRound)).replace(/[\\/:*?"<>|]/g, '_');
+      const fileName = `高33班_${safeRound}_成绩总表.xlsx`;
 
-      const header = ['排名', '考号', '姓名'];
-      for (const s of availCore) header.push(SUB[s].label);
-      if (availElective.length > 0) { header.push('选考科目'); header.push('选考分数'); }
-      header.push(`总分/${totalMax}`);
-
-      const dataRows = allRows.map(r => {
-        const row = [r.rank ?? '', r.examNo, r.name || ''];
-        for (const s of availCore) row.push(r.subScores?.[s] ?? '');
-        if (availElective.length > 0) {
-          row.push(r.elKey ? SUB[r.elKey].label : '');
-          row.push(r.elKey ? (r.subScores?.[r.elKey] ?? '') : '');
+      function fitCols(aoa, minWch = 6, maxWch = 28) {
+        const widths = [];
+        for (const row of aoa) {
+          (row || []).forEach((cell, idx) => {
+            const len = cell == null ? 0 : String(cell).length;
+            const w = Math.min(maxWch, Math.max(minWch, len + 2));
+            widths[idx] = Math.max(widths[idx] || minWch, w);
+          });
         }
-        row.push(r.total ?? r.partialTotal ?? '');
-        return row;
+        return widths.map(wch => ({ wch }));
+      }
+
+      function makeSheet(aoa, minWch = 6, maxWch = 28) {
+        const ws = XLSX.utils.aoa_to_sheet(aoa);
+        ws['!cols'] = fitCols(aoa, minWch, maxWch);
+        return ws;
+      }
+
+      // --- 总表（总分排名） ---
+      const totalRows = students.map(st => {
+        const scores = Object.fromEntries(ALL_SUBJECTS.map(k => [k, getScore(k, selRound, st.examNo)]));
+        const missing = [];
+        let total = 0;
+        for (const sub of CORE_SUBJECTS) {
+          const s = scores[sub];
+          if (s == null) missing.push(SUB[sub].label);
+          else total += s;
+        }
+        const elKey = getStudentElective(selRound, st.examNo);
+        if (!elKey) missing.push('选考');
+        else {
+          const es = scores[elKey];
+          if (es == null) missing.push(SUB[elKey].label);
+          else total += es;
+        }
+
+        return {
+          examNo: st.examNo,
+          name: st.name || '',
+          scores,
+          elKey,
+          total: missing.length ? null : total,
+          status: missing.length ? `缺${missing.join('/')}` : '完整',
+        };
       });
 
-      const ws = XLSX.utils.aoa_to_sheet([header, ...dataRows]);
+      const rankedTotals = rankBy(totalRows.filter(r => r.total != null), r => r.total);
+      const totalRankMap = Object.fromEntries(rankedTotals.map(r => [r.examNo, r.rank]));
+
+	      // Sort by rank (1,2,3...) then append incomplete/missing at the end.
+	      const orderedTotalRows = [
+	        ...rankedTotals,
+	        ...totalRows
+	          .filter(r => r.total == null)
+	          .sort((a, b) => String(a.status).localeCompare(String(b.status), 'zh') || String(a.name || '').localeCompare(String(b.name || ''), 'zh')),
+	      ];
+
+	      const totalAOA = [
+	        ['轮次', roundName(selRound), '导出时间', exportAt],
+	        [],
+	        ['总排', '姓名',
+	          ...SUBJECT_DEFS.map(s => s.label),
+	          '选考计入',
+	          `总分/${TOTAL_MAX}`,
+	          '状态',
+	        ],
+	        ...orderedTotalRows.map(r => ([
+	          r.rank ?? totalRankMap[r.examNo] ?? '',
+	          r.name,
+	          ...SUBJECT_DEFS.map(s => r.scores[s.key] ?? ''),
+	          r.elKey ? SUB[r.elKey].label : '',
+	          r.total ?? '',
+	          r.status,
+	        ])),
+	      ];
+
+      // --- 成绩分析（各科统计 + 总分统计） ---
+      const analysisAOA = [];
+      analysisAOA.push(['轮次', roundName(selRound), '导出时间', exportAt]);
+      analysisAOA.push(['说明', '均分/及格率只统计有成绩的学生（缺考不计入统计）']);
+      analysisAOA.push([]);
+      analysisAOA.push(['科目', '满分', '有效人数', '均分', '最高', '最低', '中位数', '及格率']);
+      for (const s of SUBJECT_DEFS) {
+        const vals = students.map(st => getScore(s.key, selRound, st.examNo)).filter(v => v != null);
+        const st = calcStats(vals, s.max);
+        analysisAOA.push([
+          s.label,
+          s.max,
+          st.count,
+          st.avg == null ? '' : +st.avg.toFixed(2),
+          st.max == null ? '' : st.max,
+          st.min == null ? '' : st.min,
+          st.median == null ? '' : +st.median.toFixed(2),
+	          st.passRate == null ? '' : ((st.passRate * 100).toFixed(2) + '%'),
+	        ]);
+	      }
+      analysisAOA.push([]);
+      const totalVals = rankedTotals.map(r => r.total);
+      const totalSt = calcStats(totalVals, TOTAL_MAX);
+	      analysisAOA.push(['总分(6科)', TOTAL_MAX, totalSt.count, totalSt.avg == null ? '' : +totalSt.avg.toFixed(2), totalSt.max ?? '', totalSt.min ?? '', totalSt.median == null ? '' : +totalSt.median.toFixed(2), totalSt.passRate == null ? '' : ((totalSt.passRate * 100).toFixed(2) + '%')]);
+
+      // --- 异常学生 ---
+      const anomalyAOA = [
+        ['轮次', roundName(selRound), '导出时间', exportAt],
+        [],
+        ['异常类型', '姓名', '科目', '分数', '说明'],
+      ];
+      for (const st of students) {
+        for (const s of SUBJECT_DEFS) {
+          const sc = getScore(s.key, selRound, st.examNo);
+          if (sc == null) {
+            anomalyAOA.push(['缺科', st.name || '', s.label, '', '本轮无成绩']);
+          } else if (sc < 0 || sc > s.max) {
+            anomalyAOA.push(['分数超范围', st.name || '', s.label, sc, `应在 0-${s.max} 之间`]);
+          }
+        }
+        const elKey = getStudentElective(selRound, st.examNo);
+        if (!elKey) {
+          anomalyAOA.push(['选考缺失', st.name || '', '选考', '', '生物/政治均无成绩，无法计算总分']);
+        }
+      }
+
+      // --- 每科分表 ---
+      function buildSubjectSheet(subKey) {
+        const def = SUB[subKey];
+        const withScore = students
+          .map(st => ({ examNo: st.examNo, name: st.name || '', score: getScore(subKey, selRound, st.examNo) }))
+          .filter(r => r.score != null);
+        const ranked = rankBy(withScore, r => r.score);
+        const vals = withScore.map(r => r.score);
+        const st = calcStats(vals, def.max);
+        const passLine = def.max * 0.6;
+
+        const aoa = [
+          ['科目', def.label, '轮次', roundName(selRound)],
+          ['满分', def.max, '平均分', st.avg == null ? '' : +st.avg.toFixed(2)],
+	          ['有效人数', st.count, '及格率', st.passRate == null ? '' : ((st.passRate * 100).toFixed(2) + '%')],
+          [],
+          ['排名', '姓名', '分数', '是否及格'],
+          ...ranked.map(r => [r.rank, r.name, r.score, r.score >= passLine ? '及格' : '不及格']),
+        ];
+        return makeSheet(aoa, 6, 30);
+      }
+
       const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, '排名');
-      XLSX.writeFile(wb, `高33班_${roundName(selRound)}_成绩排名.xlsx`);
+      XLSX.utils.book_append_sheet(wb, makeSheet(totalAOA, 6, 24), '总表');
+      XLSX.utils.book_append_sheet(wb, makeSheet(analysisAOA, 6, 40), '成绩分析');
+      XLSX.utils.book_append_sheet(wb, makeSheet(anomalyAOA, 6, 40), '异常学生');
+      for (const s of SUBJECT_DEFS) {
+        XLSX.utils.book_append_sheet(wb, buildSubjectSheet(s.key), s.label);
+      }
+
+      XLSX.writeFile(wb, fileName, { cellStyles: true, compression: true });
     }
 
     // === Tab Switch (lazy render) ===
@@ -1450,7 +1752,8 @@
     async function exportPublishData() {
       showMsg('dataMessage', 'info', '正在发布到 GitHub...');
       try {
-        const resp = await fetch('http://127.0.0.1:8033/publish', {
+        const base = location.protocol === 'file:' ? 'http://127.0.0.1:8033' : '';
+        const resp = await fetch(base + '/publish', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(app),
@@ -1481,7 +1784,7 @@
           if (resp.ok) {
             const published = await resp.json();
             if (published && published.version === 2 && Object.keys(published.scores || {}).length > 0) {
-              app = published;
+              app = sanitizeState(published);
               isReadOnly = true;
             }
           }
